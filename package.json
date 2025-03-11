@@ -1,0 +1,28 @@
+{
+  "name": "geo-cache-game",
+  "version": "1.0.0",
+  "description": "Application de cache-cache géolocalisé",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/app.js",
+    "install": "cd server && npm install",
+    "postinstall": "cd client && npm install",
+    "heroku-postbuild": "cd client && npm run build",
+    "dev": "concurrently \"cd server && npm run dev\" \"cd client && npm start\"",
+    "client": "cd client && npm start",
+    "server": "cd server && npm run dev"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "geolocalisation",
+    "jeu",
+    "cache-cache",
+    "maps",
+    "socket.io"
+  ],
+  "dependencies": {
+    "concurrently": "^8.0.1"
+  }
+}
