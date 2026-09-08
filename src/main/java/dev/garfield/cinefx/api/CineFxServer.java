@@ -16,7 +16,7 @@ public final class CineFxServer {
     private CineFxServer() { }
 
     public static boolean play(ServerPlayerEntity player, Identifier sceneId, SceneOptions options) {
-        long start = options.startGameTime() < 0L ? player.getServerWorld().getTime() : options.startGameTime();
+        long start = options.startGameTime() < 0L ? player.getEntityWorld().getTime() : options.startGameTime();
         return play(player, sceneId, options.anchor(), start, options.seed(), options.variables());
     }
 
@@ -53,7 +53,7 @@ public final class CineFxServer {
         double radiusSquared = radius * radius;
         int sent = 0;
         for (ServerPlayerEntity player : world.getPlayers()) {
-            if (player.getPos().squaredDistanceTo(options.anchor()) <= radiusSquared
+            if (player.getEntityPos().squaredDistanceTo(options.anchor()) <= radiusSquared
                     && play(player, sceneId, options.anchor(), start, options.seed(), options.variables())) {
                 sent++;
             }
