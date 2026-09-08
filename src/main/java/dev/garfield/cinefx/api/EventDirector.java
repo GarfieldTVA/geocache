@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Server-authoritative phase/event runtime with late-join reconstruction and asset readiness. */
+/** Server-authoritative phase/event runtime with dynamic audiences, late-join reconstruction and asset readiness. */
 public final class EventDirector {
     public static final EventDirector INSTANCE = new EventDirector();
 
@@ -53,6 +53,7 @@ public final class EventDirector {
         Session session = new Session(id, program, world.getRegistryKey(), anchor, audienceRadius, seed,
                 variables == null ? Map.of() : variables, world.getTime());
         sessions.put(id, session);
+        session.syncAudience(server, world);
         session.enterPhase(server, world, program.initialPhase());
         return new SessionHandle(id, program.id());
     }
@@ -72,7 +73,7 @@ public final class EventDirector {
                     running.startGameTime(), running.seed(), running.variables()));
         }
         sessions.put(id, session);
-        for (ServerPlayerEntity player : world.getPlayers()) session.resyncPlayer(player);
+        session.syncAudience(server, world);
         return new SessionHandle(id, program.id());
     }
 
@@ -82,6 +83,7 @@ public final class EventDirector {
         ServerWorld world = server.getWorld(session.worldKey);
         if (world != null) for (Identifier sceneId : List.copyOf(session.runningScenes.keySet())) session.stopScene(world, sceneId);
         for (PreloadState state : session.preloads.values()) preloadToSession.remove(state.requestId);
+        session.audience.clear();
     }
 
     public void pause(SessionHandle handle) { require(handle).paused = true; }
@@ -133,7 +135,7 @@ public final class EventDirector {
             ServerWorld world = server.getWorld(session.worldKey);
             long phaseTicks = world == null ? 0L : Math.max(0L, world.getTime() - session.phaseStartedAt);
             result.add(new SessionInfo(session.id, session.program.id(), session.phaseId, phaseTicks,
-                    session.paused, session.runningScenes.size(), session.preloads.size()));
+                    session.paused, session.runningScenes.size(), session.preloads.size(), session.audience.size()));
         }
         return List.copyOf(result);
     }
@@ -141,7 +143,9 @@ public final class EventDirector {
     public void resync(ServerPlayerEntity player) {
         if (player == null) return;
         for (Session session : sessions.values()) {
-            if (session.worldKey.equals(player.getEntityWorld().getRegistryKey())) session.resyncPlayer(player);
+            if (!session.worldKey.equals(player.getEntityWorld().getRegistryKey()) || !session.contains(player)) continue;
+            session.audience.add(player.getUuid());
+            session.resyncPlayer(player);
         }
     }
 
@@ -149,6 +153,7 @@ public final class EventDirector {
         for (Session session : List.copyOf(sessions.values())) {
             ServerWorld world = server.getWorld(session.worldKey);
             if (world == null) continue;
+            session.syncAudience(server, world);
             session.purgeCompletedScenes(world.getTime());
             if (session.paused) {
                 session.pausedPhaseTicks = Math.max(0L, world.getTime() - session.phaseStartedAt);
@@ -176,11 +181,17 @@ public final class EventDirector {
     private void acknowledgePreload(ServerPlayerEntity player, PreloadAckPayload payload) {
         Long sessionId = preloadToSession.get(payload.requestId());
         Session session = sessionId == null ? null : sessions.get(sessionId);
-        if (session == null) return;
+        if (session == null || !session.audience.contains(player.getUuid())) return;
         for (PreloadState state : session.preloads.values()) {
             if (state.requestId != payload.requestId()) continue;
             UUID uuid = player.getUuid();
-            if (payload.ready()) state.ready.add(uuid); else state.failed.add(uuid);
+            if (payload.ready()) {
+                state.failed.remove(uuid);
+                state.ready.add(uuid);
+            } else {
+                state.ready.remove(uuid);
+                state.failed.add(uuid);
+            }
             break;
         }
     }
@@ -194,7 +205,7 @@ public final class EventDirector {
 
     public record SessionHandle(long sessionId, Identifier programId) { }
     public record SessionInfo(long sessionId, Identifier programId, String phaseId, long phaseTicks,
-                              boolean paused, int activeScenes, int pendingPreloads) { }
+                              boolean paused, int activeScenes, int pendingPreloads, int audienceSize) { }
     public record RunningSceneSnapshot(Identifier sceneId, Vec3d anchor, long startGameTime, long seed,
                                        Map<String, String> variables) { }
     public record EventSnapshot(Identifier programId, RegistryKey<World> worldKey, Vec3d anchor,
@@ -212,6 +223,7 @@ public final class EventDirector {
         final LinkedHashMap<String, String> variables = new LinkedHashMap<>();
         final LinkedHashMap<Identifier, RunningScene> runningScenes = new LinkedHashMap<>();
         final LinkedHashMap<Identifier, PreloadState> preloads = new LinkedHashMap<>();
+        final Set<UUID> audience = new HashSet<>();
         String phaseId;
         long phaseStartedAt;
         boolean paused;
@@ -229,6 +241,29 @@ public final class EventDirector {
             this.variables.putAll(variables);
             this.phaseId = program.initialPhase();
             this.phaseStartedAt = now;
+        }
+
+        void syncAudience(MinecraftServer server, ServerWorld world) {
+            HashSet<UUID> inside = new HashSet<>();
+            for (ServerPlayerEntity player : world.getPlayers()) {
+                if (!contains(player)) continue;
+                UUID uuid = player.getUuid();
+                inside.add(uuid);
+                if (audience.add(uuid)) resyncPlayer(player);
+            }
+            for (UUID uuid : List.copyOf(audience)) {
+                if (inside.contains(uuid)) continue;
+                audience.remove(uuid);
+                ServerPlayerEntity player = server.getPlayerManager().getPlayer(uuid);
+                if (player != null) {
+                    for (Identifier sceneId : runningScenes.keySet()) CineFxServer.stop(player, sceneId);
+                }
+                for (PreloadState state : preloads.values()) {
+                    state.expected.remove(uuid);
+                    state.ready.remove(uuid);
+                    state.failed.remove(uuid);
+                }
+            }
         }
 
         void enterPhase(MinecraftServer server, ServerWorld world, String target) {
@@ -251,13 +286,14 @@ public final class EventDirector {
             RunningScene running = new RunningScene(sceneId, anchor, start, sceneSeed, Map.copyOf(sceneVariables));
             runningScenes.put(sceneId, running);
             for (ServerPlayerEntity player : world.getPlayers()) if (contains(player)) {
+                audience.add(player.getUuid());
                 CineFxServer.play(player, sceneId, anchor, start, sceneSeed, sceneVariables);
             }
         }
 
         void stopScene(ServerWorld world, Identifier sceneId) {
             runningScenes.remove(sceneId);
-            for (ServerPlayerEntity player : world.getPlayers()) if (contains(player)) CineFxServer.stop(player, sceneId);
+            for (ServerPlayerEntity player : world.getPlayers()) if (audience.contains(player.getUuid())) CineFxServer.stop(player, sceneId);
         }
 
         void purgeCompletedScenes(long now) {
@@ -272,7 +308,10 @@ public final class EventDirector {
             state = new PreloadState(preloadIds.getAndIncrement());
             preloads.put(bundleId, state);
             preloadToSession.put(state.requestId, id);
-            for (ServerPlayerEntity player : world.getPlayers()) if (contains(player)) sendPreload(player, bundleId, state);
+            for (ServerPlayerEntity player : world.getPlayers()) if (contains(player)) {
+                audience.add(player.getUuid());
+                sendPreload(player, bundleId, state);
+            }
         }
 
         boolean assetsReady(Identifier bundleId) {
@@ -290,7 +329,10 @@ public final class EventDirector {
 
         void sendPreload(ServerPlayerEntity player, Identifier bundleId, PreloadState state) {
             if (!ServerPlayNetworking.canSend(player, PreloadAssetsPayload.ID)) return;
-            state.expected.add(player.getUuid());
+            UUID uuid = player.getUuid();
+            state.expected.add(uuid);
+            state.ready.remove(uuid);
+            state.failed.remove(uuid);
             ServerPlayNetworking.send(player, new PreloadAssetsPayload(bundleId.toString(), state.requestId));
         }
 
