@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "dev.garfield.cinefx.mixin.client",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "CineFxCameraMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

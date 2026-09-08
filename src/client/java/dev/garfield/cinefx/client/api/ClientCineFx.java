@@ -35,6 +35,14 @@ public final class ClientCineFx {
         CineFxRuntime.INSTANCE.lightingBackends().register(id, priority, backend);
     }
 
+    public static void registerCinematicBackend(Identifier id, int priority, CinematicBackend backend) {
+        CineFxRuntime.INSTANCE.cinematicBackends().register(id, priority, backend);
+    }
+
+    public static void onMarker(EventMarkerListener listener) {
+        CineFxRuntime.INSTANCE.addMarkerListener(listener);
+    }
+
     /** Public so custom network bridges can reuse CineFX's synchronized playback path. */
     public static SceneHandle playNetworked(Identifier sceneId, Vec3d anchor, long startGameTime,
                                             long seed, Map<String, String> variables) {

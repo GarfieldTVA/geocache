@@ -39,6 +39,12 @@ public final class SceneBuilder {
         return this;
     }
 
+    public SceneBuilder addAll(Iterable<? extends SceneElement> values) {
+        if (values == null) throw new IllegalArgumentException("values are required");
+        for (SceneElement element : values) add(element);
+        return this;
+    }
+
     public SceneBuilder meta(String key, String value) {
         metadata.put(key, value);
         return this;

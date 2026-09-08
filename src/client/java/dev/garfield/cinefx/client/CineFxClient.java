@@ -5,6 +5,7 @@ import dev.garfield.cinefx.client.api.ClientCineFx;
 import dev.garfield.cinefx.network.PlayScenePayload;
 import dev.garfield.cinefx.network.StopScenePayload;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -12,12 +13,14 @@ import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
-/** Installs the world/HUD renderers, light bridge and small scene-control receivers. */
+/** Installs CineFX render, camera/event bridges and small scene-control receivers. */
 public final class CineFxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         WorldRenderEvents.END_MAIN.register(CineFxWorldRenderer::render);
         WorldRenderEvents.END_MAIN.register(CineFxLightingBridge::render);
+        WorldRenderEvents.END_MAIN.register(CineFxEventBridge::render);
+        ClientTickEvents.END_CLIENT_TICK.register(CineFxEventBridge::tick);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "hud"), CineFxHudRenderer::render);
 
         ClientPlayNetworking.registerGlobalReceiver(PlayScenePayload.ID, (payload, context) ->

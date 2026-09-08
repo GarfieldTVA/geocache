@@ -1,5 +1,6 @@
 package dev.garfield.cinefx.client;
 
+import dev.garfield.cinefx.api.EventElement;
 import dev.garfield.cinefx.api.SceneElement;
 import dev.garfield.cinefx.client.api.GradeFrame;
 import net.minecraft.client.MinecraftClient;
@@ -8,7 +9,7 @@ import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 
-/** HUD text, countdowns and safe post-FX fallback. */
+/** HUD text, event overlays, countdowns and safe post-FX fallback. */
 public final class CineFxHudRenderer {
     private CineFxHudRenderer() { }
 
@@ -28,7 +29,11 @@ public final class CineFxHudRenderer {
             for (SceneElement element : scene.elementsByPriority()) {
                 if (!element.activeAt(sceneTick)) continue;
                 double elementTick = sceneTick - element.startTick();
-                if (element instanceof SceneElement.HudText text) {
+                if (element instanceof EventElement.Overlay overlay) {
+                    if (claims.screen("overlay:" + overlay.key(), overlay.conflictPolicy())) {
+                        renderOverlay(context, client, overlay, elementTick);
+                    }
+                } else if (element instanceof SceneElement.HudText text) {
                     renderText(context, client, claims, scene, text, sceneTick, elementTick);
                 } else if (element instanceof SceneElement.ScreenGrade screenGrade) {
                     if (claims.screen("grade", screenGrade.conflictPolicy())) {
@@ -43,6 +48,38 @@ public final class CineFxHudRenderer {
             if (!CineFxRuntime.INSTANCE.postFxBackends().render(context, frame)) {
                 renderSafeGrade(context, client, frame);
             }
+        }
+    }
+
+    private static void renderOverlay(DrawContext context, MinecraftClient client,
+                                      EventElement.Overlay overlay, double tick) {
+        int width = client.getWindow().getScaledWidth();
+        int height = client.getWindow().getScaledHeight();
+        int sampled = overlay.color().sample(tick);
+        double opacity = clamp01(overlay.opacity().sample(tick));
+        int baseAlpha = (sampled >>> 24) & 255;
+        int alpha = (int)Math.round(baseAlpha * opacity);
+        if (alpha > 0) {
+            context.fill(0, 0, width, height, (sampled & 0x00FFFFFF) | (alpha << 24));
+        }
+
+        double bars = clamp01(overlay.letterbox().sample(tick));
+        if (bars > 0.0001) {
+            int thickness = (int)Math.round(height * 0.18 * bars);
+            if (thickness > 0) {
+                context.fill(0, 0, width, thickness, 0xFF000000);
+                context.fill(0, height - thickness, width, height, 0xFF000000);
+            }
+        }
+
+        // blur/chromatic values are hints for PostFX integrations; the safe fallback intentionally
+        // avoids expensive framebuffer copies. A subtle edge tint still communicates intensity.
+        double chroma = clamp01(overlay.chromaticAberrationHint().sample(tick));
+        if (chroma > 0.001) {
+            int edge = Math.max(1, (int)Math.round(width * 0.012 * chroma));
+            int edgeAlpha = Math.min(90, (int)Math.round(90 * chroma));
+            context.fill(0, 0, edge, height, (edgeAlpha << 24) | 0x00FF2030);
+            context.fill(width - edge, 0, width, height, (edgeAlpha << 24) | 0x002060FF);
         }
     }
 
@@ -108,6 +145,10 @@ public final class CineFxHudRenderer {
                 context.fill(width - edge, edge, width - next, height - edge, color);
             }
         }
+    }
+
+    private static double clamp01(double value) {
+        return Math.max(0.0, Math.min(1.0, value));
     }
 
     private static final class GradeAccumulator {

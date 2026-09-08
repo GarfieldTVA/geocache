@@ -3,6 +3,7 @@ package dev.garfield.cinefx.client;
 import dev.garfield.cinefx.api.CineFxApi;
 import dev.garfield.cinefx.api.SceneDefinition;
 import dev.garfield.cinefx.api.SceneOptions;
+import dev.garfield.cinefx.client.api.EventMarkerListener;
 import dev.garfield.cinefx.client.api.SceneHandle;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.Identifier;
@@ -10,6 +11,7 @@ import net.minecraft.util.Identifier;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Client-thread scene runtime. No individual visual object is ticked. */
@@ -21,6 +23,8 @@ public final class CineFxRuntime {
     private final CustomRendererRegistry customRenderers = new CustomRendererRegistry();
     private final PostFxBackendRegistry postFxBackends = new PostFxBackendRegistry();
     private final LightingBackendRegistry lightingBackends = new LightingBackendRegistry();
+    private final CinematicBackendRegistry cinematicBackends = new CinematicBackendRegistry();
+    private final ArrayList<EventMarkerListener> markerListeners = new ArrayList<>();
 
     private CineFxRuntime() { }
 
@@ -59,6 +63,22 @@ public final class CineFxRuntime {
     public CustomRendererRegistry customRenderers() { return customRenderers; }
     public PostFxBackendRegistry postFxBackends() { return postFxBackends; }
     public LightingBackendRegistry lightingBackends() { return lightingBackends; }
+    public CinematicBackendRegistry cinematicBackends() { return cinematicBackends; }
+
+    public void addMarkerListener(EventMarkerListener listener) {
+        if (listener == null) throw new IllegalArgumentException("listener is required");
+        markerListeners.add(listener);
+    }
+
+    public void fireMarker(Identifier sceneId, long sceneInstanceId, String name, Map<String, String> parameters) {
+        for (EventMarkerListener listener : List.copyOf(markerListeners)) {
+            try {
+                listener.onMarker(sceneId, sceneInstanceId, name, parameters);
+            } catch (RuntimeException exception) {
+                System.err.println("[CineFX] Marker listener failed for " + name + ": " + exception.getMessage());
+            }
+        }
+    }
 
     public static double absoluteGameTick(MinecraftClient client) {
         if (client.world == null) return 0.0;
