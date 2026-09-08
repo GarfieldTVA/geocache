@@ -17,6 +17,12 @@ import net.minecraft.util.math.Vec3d;
 public final class CineFxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
+        // Lowest-priority fallback: real vanilla player/entity models without world/tracker entities.
+        CineFxRuntime.INSTANCE.cinematicBackends().register(
+                Identifier.of(CineFx.MOD_ID, "vanilla_actors"),
+                -1000,
+                new CineFxBuiltInCinematicBackend());
+
         WorldRenderEvents.END_MAIN.register(CineFxWorldRenderer::render);
         WorldRenderEvents.END_MAIN.register(CineFxSceneGraphBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxLightingBridge::render);
@@ -36,6 +42,7 @@ public final class CineFxClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             CineFxRuntime.INSTANCE.clear();
             CineFxSceneGraphBridge.clear();
+            CineFxVanillaActorRenderer.clear();
         });
     }
 
