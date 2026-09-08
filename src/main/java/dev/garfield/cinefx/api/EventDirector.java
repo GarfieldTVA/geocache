@@ -23,10 +23,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Server-authoritative live-event director. It owns phases, audience, active scene start times,
- * late-join reconstruction and asset-readiness handshakes while clients still evaluate visuals locally.
- */
+/** Server-authoritative phase/event runtime with late-join reconstruction and asset readiness. */
 public final class EventDirector {
     public static final EventDirector INSTANCE = new EventDirector();
 
@@ -42,8 +39,7 @@ public final class EventDirector {
         if (initialized) return;
         initialized = true;
         ServerTickEvents.END_SERVER_TICK.register(this::tick);
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-                server.execute(() -> resync(handler.player)));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> server.execute(() -> resync(handler.player)));
         ServerPlayNetworking.registerGlobalReceiver(PreloadAckPayload.ID, (payload, context) ->
                 context.server().execute(() -> acknowledgePreload(context.player(), payload)));
     }
@@ -62,10 +58,9 @@ public final class EventDirector {
     }
 
     public SessionHandle restore(MinecraftServer server, EventProgram program, EventSnapshot snapshot) {
-        if (server == null || program == null || snapshot == null) throw new IllegalArgumentException("server/program/snapshot are required");
         ServerWorld world = server.getWorld(snapshot.worldKey());
-        if (world == null) throw new IllegalStateException("World is unavailable for snapshot: " + snapshot.worldKey().getValue());
-        if (!program.id().equals(snapshot.programId())) throw new IllegalArgumentException("Snapshot program id does not match");
+        if (world == null) throw new IllegalStateException("World unavailable: " + snapshot.worldKey().getValue());
+        if (!program.id().equals(snapshot.programId())) throw new IllegalArgumentException("Snapshot program id mismatch");
         long id = sessionIds.getAndIncrement();
         Session session = new Session(id, program, snapshot.worldKey(), snapshot.anchor(), snapshot.audienceRadius(),
                 snapshot.seed(), snapshot.variables(), world.getTime());
@@ -77,25 +72,19 @@ public final class EventDirector {
                     running.startGameTime(), running.seed(), running.variables()));
         }
         sessions.put(id, session);
-        for (ServerPlayerEntity player : world.getPlayers()) session.resyncPlayer(player, world);
+        for (ServerPlayerEntity player : world.getPlayers()) session.resyncPlayer(player);
         return new SessionHandle(id, program.id());
     }
 
     public void stop(MinecraftServer server, SessionHandle handle) {
-        if (handle == null) return;
-        Session session = sessions.remove(handle.sessionId());
+        Session session = handle == null ? null : sessions.remove(handle.sessionId());
         if (session == null) return;
         ServerWorld world = server.getWorld(session.worldKey);
-        if (world != null) {
-            for (Identifier sceneId : List.copyOf(session.runningScenes.keySet())) session.stopScene(world, sceneId);
-        }
-        session.preloads.values().forEach(value -> preloadToSession.remove(value.requestId));
+        if (world != null) for (Identifier sceneId : List.copyOf(session.runningScenes.keySet())) session.stopScene(world, sceneId);
+        for (PreloadState state : session.preloads.values()) preloadToSession.remove(state.requestId);
     }
 
-    public void pause(SessionHandle handle) {
-        Session session = require(handle);
-        session.paused = true;
-    }
+    public void pause(SessionHandle handle) { require(handle).paused = true; }
 
     public void resume(MinecraftServer server, SessionHandle handle) {
         Session session = require(handle);
@@ -109,14 +98,12 @@ public final class EventDirector {
     public void setPhase(MinecraftServer server, SessionHandle handle, String phaseId) {
         Session session = require(handle);
         ServerWorld world = server.getWorld(session.worldKey);
-        if (world == null) return;
-        session.transition(server, world, phaseId, List.of());
+        if (world != null) session.transition(server, world, phaseId, List.of());
     }
 
     public void setVariable(SessionHandle handle, String key, String value) {
         Session session = require(handle);
-        if (value == null) session.variables.remove(key);
-        else session.variables.put(key, value);
+        if (value == null) session.variables.remove(key); else session.variables.put(key, value);
     }
 
     public void seekScene(MinecraftServer server, SessionHandle handle, Identifier sceneId, double localTick) {
@@ -125,8 +112,7 @@ public final class EventDirector {
         RunningScene previous = session.runningScenes.get(sceneId);
         if (world == null || previous == null) return;
         session.stopScene(world, sceneId);
-        long start = world.getTime() - Math.max(0L, (long)Math.floor(localTick));
-        session.playScene(world, sceneId, start, previous.seed(), previous.variables());
+        session.playScene(world, sceneId, world.getTime() - Math.max(0L, (long)Math.floor(localTick)), previous.seed, previous.variables);
     }
 
     public EventSnapshot snapshot(MinecraftServer server, SessionHandle handle) {
@@ -155,9 +141,7 @@ public final class EventDirector {
     public void resync(ServerPlayerEntity player) {
         if (player == null) return;
         for (Session session : sessions.values()) {
-            ServerWorld world = player.getEntityWorld();
-            if (!session.worldKey.equals(world.getRegistryKey())) continue;
-            session.resyncPlayer(player, world);
+            if (session.worldKey.equals(player.getEntityWorld().getRegistryKey())) session.resyncPlayer(player);
         }
     }
 
@@ -170,18 +154,17 @@ public final class EventDirector {
                 session.pausedPhaseTicks = Math.max(0L, world.getTime() - session.phaseStartedAt);
                 continue;
             }
-
-            int transitionsThisTick = 0;
-            while (transitionsThisTick++ < 8) {
+            int guard = 0;
+            while (guard++ < 8) {
                 EventProgram.Phase phase = session.program.phases().get(session.phaseId);
                 if (phase == null) break;
-                RuntimeContext context = new RuntimeContext(server, world, session);
+                RuntimeContext context = new RuntimeContext(world, session);
                 EventProgram.Transition selected = null;
                 for (EventProgram.Transition transition : phase.transitions()) {
                     try {
                         if (transition.condition().test(context)) { selected = transition; break; }
                     } catch (RuntimeException exception) {
-                        System.err.println("[CineFX] Event condition failed in " + session.program.id() + ": " + exception.getMessage());
+                        System.err.println("[CineFX] Event condition failed: " + exception.getMessage());
                     }
                 }
                 if (selected == null) break;
@@ -192,15 +175,13 @@ public final class EventDirector {
 
     private void acknowledgePreload(ServerPlayerEntity player, PreloadAckPayload payload) {
         Long sessionId = preloadToSession.get(payload.requestId());
-        if (sessionId == null) return;
-        Session session = sessions.get(sessionId);
+        Session session = sessionId == null ? null : sessions.get(sessionId);
         if (session == null) return;
         for (PreloadState state : session.preloads.values()) {
             if (state.requestId != payload.requestId()) continue;
-            UUID id = player.getUuid();
-            if (payload.ready()) state.ready.add(id);
-            else state.failed.add(id);
-            return;
+            UUID uuid = player.getUuid();
+            if (payload.ready()) state.ready.add(uuid); else state.failed.add(uuid);
+            break;
         }
     }
 
@@ -212,17 +193,13 @@ public final class EventDirector {
     }
 
     public record SessionHandle(long sessionId, Identifier programId) { }
-
     public record SessionInfo(long sessionId, Identifier programId, String phaseId, long phaseTicks,
                               boolean paused, int activeScenes, int pendingPreloads) { }
-
-    public record RunningSceneSnapshot(Identifier sceneId, Vec3d anchor, long startGameTime,
-                                       long seed, Map<String, String> variables) { }
-
+    public record RunningSceneSnapshot(Identifier sceneId, Vec3d anchor, long startGameTime, long seed,
+                                       Map<String, String> variables) { }
     public record EventSnapshot(Identifier programId, RegistryKey<World> worldKey, Vec3d anchor,
                                 double audienceRadius, long seed, String phaseId, long phaseElapsedTicks,
-                                boolean paused, Map<String, String> variables,
-                                List<RunningSceneSnapshot> activeScenes) { }
+                                boolean paused, Map<String, String> variables, List<RunningSceneSnapshot> activeScenes) { }
 
     private final class Session {
         final long id;
@@ -259,31 +236,28 @@ public final class EventDirector {
             if (phase == null) throw new IllegalArgumentException("Unknown CineFX phase: " + target);
             phaseId = target;
             phaseStartedAt = world.getTime();
-            RuntimeContext context = new RuntimeContext(server, world, this);
-            runActions(phase.onEnter(), context);
+            runActions(phase.onEnter(), new RuntimeContext(world, this));
         }
 
-        void transition(MinecraftServer server, ServerWorld world, String target, List<EventProgram.Action> transitionActions) {
+        void transition(MinecraftServer server, ServerWorld world, String target, List<EventProgram.Action> actions) {
             EventProgram.Phase current = program.phases().get(phaseId);
-            RuntimeContext context = new RuntimeContext(server, world, this);
+            RuntimeContext context = new RuntimeContext(world, this);
             if (current != null) runActions(current.onExit(), context);
-            runActions(transitionActions, context);
+            runActions(actions, context);
             enterPhase(server, world, target);
         }
 
         void playScene(ServerWorld world, Identifier sceneId, long start, long sceneSeed, Map<String, String> sceneVariables) {
             RunningScene running = new RunningScene(sceneId, anchor, start, sceneSeed, Map.copyOf(sceneVariables));
             runningScenes.put(sceneId, running);
-            for (ServerPlayerEntity player : world.getPlayers()) {
-                if (contains(player)) CineFxServer.play(player, sceneId, anchor, start, sceneSeed, sceneVariables);
+            for (ServerPlayerEntity player : world.getPlayers()) if (contains(player)) {
+                CineFxServer.play(player, sceneId, anchor, start, sceneSeed, sceneVariables);
             }
         }
 
         void stopScene(ServerWorld world, Identifier sceneId) {
             runningScenes.remove(sceneId);
-            for (ServerPlayerEntity player : world.getPlayers()) {
-                if (contains(player)) CineFxServer.stop(player, sceneId);
-            }
+            for (ServerPlayerEntity player : world.getPlayers()) if (contains(player)) CineFxServer.stop(player, sceneId);
         }
 
         void purgeCompletedScenes(long now) {
@@ -292,21 +266,13 @@ public final class EventDirector {
         }
 
         void requestPreload(ServerWorld world, Identifier bundleId) {
-            PreloadState previous = preloads.get(bundleId);
-            if (previous != null && !previous.failed.isEmpty()) {
-                preloadToSession.remove(previous.requestId);
-                preloads.remove(bundleId);
-            } else if (previous != null) {
-                return;
-            }
-            long requestId = preloadIds.getAndIncrement();
-            PreloadState state = new PreloadState(requestId);
+            PreloadState state = preloads.get(bundleId);
+            if (state != null && state.failed.isEmpty()) return;
+            if (state != null) preloadToSession.remove(state.requestId);
+            state = new PreloadState(preloadIds.getAndIncrement());
             preloads.put(bundleId, state);
-            preloadToSession.put(requestId, id);
-            for (ServerPlayerEntity player : world.getPlayers()) {
-                if (!contains(player)) continue;
-                sendPreload(player, bundleId, state);
-            }
+            preloadToSession.put(state.requestId, id);
+            for (ServerPlayerEntity player : world.getPlayers()) if (contains(player)) sendPreload(player, bundleId, state);
         }
 
         boolean assetsReady(Identifier bundleId) {
@@ -314,17 +280,15 @@ public final class EventDirector {
             return state != null && state.failed.isEmpty() && state.ready.containsAll(state.expected);
         }
 
-        void resyncPlayer(ServerPlayerEntity player, ServerWorld world) {
+        void resyncPlayer(ServerPlayerEntity player) {
             if (!contains(player)) return;
             for (RunningScene running : runningScenes.values()) {
                 CineFxServer.play(player, running.sceneId, running.anchor, running.startGameTime, running.seed, running.variables);
             }
-            for (Map.Entry<Identifier, PreloadState> entry : preloads.entrySet()) {
-                sendPreload(player, entry.getKey(), entry.getValue());
-            }
+            for (Map.Entry<Identifier, PreloadState> entry : preloads.entrySet()) sendPreload(player, entry.getKey(), entry.getValue());
         }
 
-        private void sendPreload(ServerPlayerEntity player, Identifier bundleId, PreloadState state) {
+        void sendPreload(ServerPlayerEntity player, Identifier bundleId, PreloadState state) {
             if (!ServerPlayNetworking.canSend(player, PreloadAssetsPayload.ID)) return;
             state.expected.add(player.getUuid());
             ServerPlayNetworking.send(player, new PreloadAssetsPayload(bundleId.toString(), state.requestId));
@@ -342,13 +306,8 @@ public final class EventDirector {
         final long startGameTime;
         final long seed;
         final Map<String, String> variables;
-
         RunningScene(Identifier sceneId, Vec3d anchor, long startGameTime, long seed, Map<String, String> variables) {
-            this.sceneId = sceneId;
-            this.anchor = anchor;
-            this.startGameTime = startGameTime;
-            this.seed = seed;
-            this.variables = variables;
+            this.sceneId = sceneId; this.anchor = anchor; this.startGameTime = startGameTime; this.seed = seed; this.variables = variables;
         }
     }
 
@@ -357,30 +316,18 @@ public final class EventDirector {
         final Set<UUID> expected = new HashSet<>();
         final Set<UUID> ready = new HashSet<>();
         final Set<UUID> failed = new HashSet<>();
-
         PreloadState(long requestId) { this.requestId = requestId; }
     }
 
     private static void runActions(List<EventProgram.Action> actions, EventProgram.Context context) {
-        for (EventProgram.Action action : actions) {
-            try { action.run(context); }
-            catch (RuntimeException exception) {
-                System.err.println("[CineFX] Event action failed: " + exception.getMessage());
-            }
-        }
+        for (EventProgram.Action action : actions) try { action.run(context); }
+        catch (RuntimeException exception) { System.err.println("[CineFX] Event action failed: " + exception.getMessage()); }
     }
 
     private final class RuntimeContext implements EventProgram.Context {
-        private final MinecraftServer server;
         private final ServerWorld world;
         private final Session session;
-
-        RuntimeContext(MinecraftServer server, ServerWorld world, Session session) {
-            this.server = server;
-            this.world = world;
-            this.session = session;
-        }
-
+        RuntimeContext(ServerWorld world, Session session) { this.world = world; this.session = session; }
         @Override public Identifier programId() { return session.program.id(); }
         @Override public long sessionId() { return session.id; }
         @Override public String phaseId() { return session.phaseId; }
@@ -388,24 +335,17 @@ public final class EventDirector {
         @Override public long worldTime() { return world.getTime(); }
         @Override public String variable(String key) { return session.variables.get(key); }
         @Override public Map<String, String> variables() { return Map.copyOf(session.variables); }
-        @Override public void setVariable(String key, String value) {
-            if (value == null) session.variables.remove(key); else session.variables.put(key, value);
-        }
-
-        @Override
-        public void playScene(Identifier sceneId, long startOffsetTicks, long seedSalt, Map<String, String> actionVariables) {
+        @Override public void setVariable(String key, String value) { if (value == null) session.variables.remove(key); else session.variables.put(key, value); }
+        @Override public void playScene(Identifier sceneId, long offset, long seedSalt, Map<String, String> actionVariables) {
             LinkedHashMap<String, String> merged = new LinkedHashMap<>(session.variables);
             if (actionVariables != null) merged.putAll(actionVariables);
             long sceneSeed = session.seed ^ seedSalt ^ ((long)sceneId.hashCode() << 32) ^ session.id;
-            session.playScene(world, sceneId, world.getTime() + startOffsetTicks, sceneSeed, merged);
+            session.playScene(world, sceneId, world.getTime() + offset, sceneSeed, merged);
         }
-
         @Override public void stopScene(Identifier sceneId) { session.stopScene(world, sceneId); }
         @Override public void requestPreload(Identifier bundleId) { session.requestPreload(world, bundleId); }
         @Override public boolean assetsReady(Identifier bundleId) { return session.assetsReady(bundleId); }
-
-        @Override
-        public void marker(String name, Map<String, String> parameters) {
+        @Override public void marker(String name, Map<String, String> parameters) {
             System.out.println("[CineFX] Event marker " + session.program.id() + "/" + session.id + ": " + name + " " + parameters);
         }
     }
