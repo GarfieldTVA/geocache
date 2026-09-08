@@ -1,5 +1,6 @@
 package dev.garfield.cinefx;
 
+import dev.garfield.cinefx.api.EventDirector;
 import dev.garfield.cinefx.network.CineFxNetworking;
 import net.fabricmc.api.ModInitializer;
 
@@ -10,5 +11,6 @@ public final class CineFx implements ModInitializer {
     @Override
     public void onInitialize() {
         CineFxNetworking.initialize();
+        EventDirector.INSTANCE.initialize();
     }
 }

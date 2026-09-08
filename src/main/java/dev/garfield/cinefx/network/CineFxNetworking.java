@@ -12,5 +12,7 @@ public final class CineFxNetworking {
         initialized = true;
         PayloadTypeRegistry.playS2C().register(PlayScenePayload.ID, PlayScenePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(StopScenePayload.ID, StopScenePayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(PreloadAssetsPayload.ID, PreloadAssetsPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(PreloadAckPayload.ID, PreloadAckPayload.CODEC);
     }
 }

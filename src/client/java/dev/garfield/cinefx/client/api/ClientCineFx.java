@@ -1,13 +1,17 @@
 package dev.garfield.cinefx.client.api;
 
+import dev.garfield.cinefx.api.QualityTier;
 import dev.garfield.cinefx.api.SceneOptions;
+import dev.garfield.cinefx.client.AdaptiveQualityController;
+import dev.garfield.cinefx.client.CineFxAssetPreloader;
+import dev.garfield.cinefx.client.CineFxDebugOverlay;
 import dev.garfield.cinefx.client.CineFxRuntime;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.Map;
 
-/** Client-only API for local playback and renderer integrations. */
+/** Client-only API for playback, renderer integrations, preload and developer controls. */
 public final class ClientCineFx {
     private ClientCineFx() { }
 
@@ -38,6 +42,19 @@ public final class ClientCineFx {
     public static void registerCinematicBackend(Identifier id, int priority, CinematicBackend backend) {
         CineFxRuntime.INSTANCE.cinematicBackends().register(id, priority, backend);
     }
+
+    public static void registerAssetPreloader(Identifier id, int priority, AssetPreloadBackend backend) {
+        CineFxAssetPreloader.register(id, priority, backend);
+    }
+
+    public static CineFxAssetPreloader.Result preload(Identifier bundleId) {
+        return CineFxAssetPreloader.preload(bundleId);
+    }
+
+    public static QualityTier quality() { return AdaptiveQualityController.current(); }
+    public static void forceQuality(QualityTier tier) { AdaptiveQualityController.force(tier); }
+    public static void automaticQuality() { AdaptiveQualityController.automatic(); }
+    public static void debugOverlay(boolean enabled) { CineFxDebugOverlay.setEnabled(enabled); }
 
     public static void onMarker(EventMarkerListener listener) {
         CineFxRuntime.INSTANCE.addMarkerListener(listener);

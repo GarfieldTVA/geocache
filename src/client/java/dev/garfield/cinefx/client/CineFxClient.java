@@ -3,6 +3,8 @@ package dev.garfield.cinefx.client;
 import dev.garfield.cinefx.CineFx;
 import dev.garfield.cinefx.client.api.ClientCineFx;
 import dev.garfield.cinefx.network.PlayScenePayload;
+import dev.garfield.cinefx.network.PreloadAckPayload;
+import dev.garfield.cinefx.network.PreloadAssetsPayload;
 import dev.garfield.cinefx.network.StopScenePayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -13,11 +15,10 @@ import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
-/** Installs CineFX render, camera/event/scene-graph bridges and small scene-control receivers. */
+/** Installs CineFX rendering, advanced-event bridges and synchronization receivers. */
 public final class CineFxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        // Lowest-priority fallback: real vanilla player/entity models without world/tracker entities.
         CineFxRuntime.INSTANCE.cinematicBackends().register(
                 Identifier.of(CineFx.MOD_ID, "vanilla_actors"),
                 -1000,
@@ -25,10 +26,12 @@ public final class CineFxClient implements ClientModInitializer {
 
         WorldRenderEvents.END_MAIN.register(CineFxWorldRenderer::render);
         WorldRenderEvents.END_MAIN.register(CineFxSceneGraphBridge::render);
+        WorldRenderEvents.END_MAIN.register(CineFxAdvancedEventBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxLightingBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxEventBridge::render);
         ClientTickEvents.END_CLIENT_TICK.register(CineFxEventBridge::tick);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "hud"), CineFxHudRenderer::render);
+        HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "debug"), CineFxDebugOverlay::render);
 
         ClientPlayNetworking.registerGlobalReceiver(PlayScenePayload.ID, (payload, context) ->
                 context.client().execute(() -> ClientCineFx.playNetworked(
@@ -39,10 +42,18 @@ public final class CineFxClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(StopScenePayload.ID, (payload, context) ->
                 context.client().execute(() -> ClientCineFx.stop(parse(payload.sceneId()))));
 
+        ClientPlayNetworking.registerGlobalReceiver(PreloadAssetsPayload.ID, (payload, context) ->
+                context.client().execute(() -> {
+                    CineFxAssetPreloader.Result result = CineFxAssetPreloader.preload(parse(payload.bundleId()));
+                    ClientPlayNetworking.send(new PreloadAckPayload(payload.requestId(), result.ready(),
+                            result.missingResources() + result.logicalAssetsFailed()));
+                }));
+
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             CineFxRuntime.INSTANCE.clear();
             CineFxSceneGraphBridge.clear();
             CineFxVanillaActorRenderer.clear();
+            AdaptiveQualityController.reset();
         });
     }
 
