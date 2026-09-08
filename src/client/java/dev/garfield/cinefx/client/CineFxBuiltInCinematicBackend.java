@@ -11,4 +11,9 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
         CineFxVanillaActorRenderer.render(context, actors);
         return true;
     }
+
+    @Override
+    public boolean applyPlayerControl(PlayerControlFrame control) {
+        return CineFxPlayerControlState.apply(control);
+    }
 }

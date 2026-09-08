@@ -30,6 +30,7 @@ public final class CineFxClient implements ClientModInitializer {
         WorldRenderEvents.END_MAIN.register(CineFxLightingBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxEventBridge::render);
         ClientTickEvents.END_CLIENT_TICK.register(CineFxEventBridge::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(CineFxPlayerControlState::tick);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "hud"), CineFxHudRenderer::render);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "debug"), CineFxDebugOverlay::render);
 
@@ -53,6 +54,7 @@ public final class CineFxClient implements ClientModInitializer {
             CineFxRuntime.INSTANCE.clear();
             CineFxSceneGraphBridge.clear();
             CineFxVanillaActorRenderer.clear();
+            CineFxPlayerControlState.clear();
             AdaptiveQualityController.reset();
         });
     }

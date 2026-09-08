@@ -3,7 +3,9 @@
   "package": "dev.garfield.cinefx.mixin.client",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "CineFxCameraMixin"
+    "CineFxCameraMixin",
+    "CineFxFovMixin",
+    "CineFxHudControlMixin"
   ],
   "injectors": {
     "defaultRequire": 1
