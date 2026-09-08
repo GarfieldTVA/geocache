@@ -214,17 +214,17 @@ public final class CineFxAdvancedEventBridge {
 
     private static void renderBeam(SceneRenderContext context, AttachmentFrame frame,
                                    AdvancedEventElement.BeamPayload beam, double local) {
-        Vec3d a = point(frame.worldMatrix(), beam.from());
-        Vec3d b = point(frame.worldMatrix(), beam.to());
+        final Vec3d a = point(frame.worldMatrix(), beam.from());
+        final Vec3d b = point(frame.worldMatrix(), beam.to());
         Vec3d direction = b.subtract(a);
         if (direction.lengthSquared() < 1.0e-8) return;
         double half = Math.max(0.001, beam.width().sample(local)) * 0.5;
-        Vec3d side = direction.crossProduct(new Vec3d(0, 1, 0));
-        if (side.lengthSquared() < 1.0e-8) side = direction.crossProduct(new Vec3d(1, 0, 0));
-        side = side.normalize().multiply(half);
-        Vec3d up = direction.normalize().crossProduct(side).normalize().multiply(half);
-        int color = beam.color().sample(local);
-        Vec3d camera = context.cameraPosition();
+        Vec3d rawSide = direction.crossProduct(new Vec3d(0, 1, 0));
+        if (rawSide.lengthSquared() < 1.0e-8) rawSide = direction.crossProduct(new Vec3d(1, 0, 0));
+        final Vec3d side = rawSide.normalize().multiply(half);
+        final Vec3d up = direction.normalize().crossProduct(side).normalize().multiply(half);
+        final int color = beam.color().sample(local);
+        final Vec3d camera = context.cameraPosition();
         context.matrices().push();
         context.commandQueue().submitCustom(context.matrices(), RenderLayers.debugQuads(), (entry, vertices) -> {
             Matrix4f matrix = entry.getPositionMatrix();
