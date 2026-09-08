@@ -21,7 +21,12 @@ public record Transform(Vec3d translation, Vec3d rotationDegrees, Vec3d scale) {
     }
 
     public static Transform scale(double uniform) {
-        return new Transform(Vec3d.ZERO, Vec3d.ZERO, new Vec3d(uniform, uniform, uniform));
+        return scale(uniform, uniform, uniform);
+    }
+
+    /** Independent X/Y/Z scaling; negative components mirror that axis. */
+    public static Transform scale(double x, double y, double z) {
+        return new Transform(Vec3d.ZERO, Vec3d.ZERO, new Vec3d(x, y, z));
     }
 
     public Transform combine(Transform other) {

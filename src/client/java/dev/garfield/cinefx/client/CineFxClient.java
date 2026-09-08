@@ -13,11 +13,12 @@ import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
-/** Installs CineFX render, camera/event bridges and small scene-control receivers. */
+/** Installs CineFX render, camera/event/scene-graph bridges and small scene-control receivers. */
 public final class CineFxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         WorldRenderEvents.END_MAIN.register(CineFxWorldRenderer::render);
+        WorldRenderEvents.END_MAIN.register(CineFxSceneGraphBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxLightingBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxEventBridge::render);
         ClientTickEvents.END_CLIENT_TICK.register(CineFxEventBridge::tick);
@@ -32,7 +33,10 @@ public final class CineFxClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(StopScenePayload.ID, (payload, context) ->
                 context.client().execute(() -> ClientCineFx.stop(parse(payload.sceneId()))));
 
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> CineFxRuntime.INSTANCE.clear());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            CineFxRuntime.INSTANCE.clear();
+            CineFxSceneGraphBridge.clear();
+        });
     }
 
     private static Identifier parse(String raw) {

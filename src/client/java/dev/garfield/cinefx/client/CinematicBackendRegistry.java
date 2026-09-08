@@ -1,9 +1,17 @@
 package dev.garfield.cinefx.client;
 
 import dev.garfield.cinefx.client.api.CinematicBackend;
+import dev.garfield.cinefx.client.api.CinematicBackend.ActorFrame;
 import dev.garfield.cinefx.client.api.CinematicBackend.AtmosphereFrame;
 import dev.garfield.cinefx.client.api.CinematicBackend.CameraFrame;
+import dev.garfield.cinefx.client.api.CinematicBackend.DecalFrame;
+import dev.garfield.cinefx.client.api.CinematicBackend.InstanceBatchFrame;
+import dev.garfield.cinefx.client.api.CinematicBackend.MeshFrame;
 import dev.garfield.cinefx.client.api.CinematicBackend.ParticleFrame;
+import dev.garfield.cinefx.client.api.CinematicBackend.SceneRenderContext;
+import dev.garfield.cinefx.client.api.CinematicBackend.ShadowFrame;
+import dev.garfield.cinefx.client.api.CinematicBackend.TrailFrame;
+import dev.garfield.cinefx.client.api.CinematicBackend.VolumeFrame;
 import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
@@ -28,7 +36,7 @@ public final class CinematicBackendRegistry {
             try {
                 if (entry.backend.applyCamera(frame)) return true;
             } catch (RuntimeException exception) {
-                System.err.println("[CineFX] Camera backend failed: " + entry.id + " - " + exception.getMessage());
+                failed("Camera", entry, exception);
             }
         }
         return false;
@@ -39,7 +47,7 @@ public final class CinematicBackendRegistry {
             try {
                 if (entry.backend.applyAtmosphere(frame)) return true;
             } catch (RuntimeException exception) {
-                System.err.println("[CineFX] Atmosphere backend failed: " + entry.id + " - " + exception.getMessage());
+                failed("Atmosphere", entry, exception);
             }
         }
         return false;
@@ -50,10 +58,91 @@ public final class CinematicBackendRegistry {
             try {
                 if (entry.backend.emitParticles(frames)) return true;
             } catch (RuntimeException exception) {
-                System.err.println("[CineFX] Particle backend failed: " + entry.id + " - " + exception.getMessage());
+                failed("Particle", entry, exception);
             }
         }
         return false;
+    }
+
+    public synchronized boolean actors(SceneRenderContext context, List<ActorFrame> frames) {
+        for (Entry entry : entries) {
+            try {
+                if (entry.backend.renderActors(context, frames)) return true;
+            } catch (RuntimeException exception) {
+                failed("Actor", entry, exception);
+            }
+        }
+        return false;
+    }
+
+    public synchronized boolean meshes(SceneRenderContext context, List<MeshFrame> frames) {
+        for (Entry entry : entries) {
+            try {
+                if (entry.backend.renderMeshes(context, frames)) return true;
+            } catch (RuntimeException exception) {
+                failed("Mesh", entry, exception);
+            }
+        }
+        return false;
+    }
+
+    public synchronized boolean instances(SceneRenderContext context, List<InstanceBatchFrame> frames) {
+        for (Entry entry : entries) {
+            try {
+                if (entry.backend.renderInstanceBatches(context, frames)) return true;
+            } catch (RuntimeException exception) {
+                failed("Instance", entry, exception);
+            }
+        }
+        return false;
+    }
+
+    public synchronized boolean shadows(SceneRenderContext context, List<ShadowFrame> frames) {
+        for (Entry entry : entries) {
+            try {
+                if (entry.backend.renderShadows(context, frames)) return true;
+            } catch (RuntimeException exception) {
+                failed("Shadow", entry, exception);
+            }
+        }
+        return false;
+    }
+
+    public synchronized boolean trails(SceneRenderContext context, List<TrailFrame> frames) {
+        for (Entry entry : entries) {
+            try {
+                if (entry.backend.renderTrails(context, frames)) return true;
+            } catch (RuntimeException exception) {
+                failed("Trail", entry, exception);
+            }
+        }
+        return false;
+    }
+
+    public synchronized boolean decals(SceneRenderContext context, List<DecalFrame> frames) {
+        for (Entry entry : entries) {
+            try {
+                if (entry.backend.renderDecals(context, frames)) return true;
+            } catch (RuntimeException exception) {
+                failed("Decal", entry, exception);
+            }
+        }
+        return false;
+    }
+
+    public synchronized boolean volumes(SceneRenderContext context, List<VolumeFrame> frames) {
+        for (Entry entry : entries) {
+            try {
+                if (entry.backend.renderVolumes(context, frames)) return true;
+            } catch (RuntimeException exception) {
+                failed("Volume", entry, exception);
+            }
+        }
+        return false;
+    }
+
+    private static void failed(String channel, Entry entry, RuntimeException exception) {
+        System.err.println("[CineFX] " + channel + " backend failed: " + entry.id + " - " + exception.getMessage());
     }
 
     private record Entry(Identifier id, int priority, CinematicBackend backend) { }
