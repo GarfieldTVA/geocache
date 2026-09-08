@@ -11,17 +11,16 @@ final class VisualClaims {
     private final Set<String> claims = new HashSet<>();
 
     boolean claim(String key, ConflictPolicy policy) {
-        if (policy == ConflictPolicy.ALLOW || policy == ConflictPolicy.FORCE) return true;
+        if (policy == ConflictPolicy.ALLOW) return true;
+        if (policy == ConflictPolicy.FORCE) {
+            claims.add(key); // it still protects the resource from lower-priority exclusive effects
+            return true;
+        }
         if (claims.contains(key)) return false;
         claims.add(key);
         return true;
     }
 
-    boolean block(BlockPos pos, ConflictPolicy policy) {
-        return claim("block:" + pos.asLong(), policy);
-    }
-
-    boolean screen(String channel, ConflictPolicy policy) {
-        return claim("screen:" + channel, policy);
-    }
+    boolean block(BlockPos pos, ConflictPolicy policy) { return claim("block:" + pos.asLong(), policy); }
+    boolean screen(String channel, ConflictPolicy policy) { return claim("screen:" + channel, policy); }
 }

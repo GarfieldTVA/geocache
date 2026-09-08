@@ -12,11 +12,12 @@ import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
-/** Installs one world renderer, one HUD renderer and two tiny scene-control receivers. */
+/** Installs the world/HUD renderers, light bridge and small scene-control receivers. */
 public final class CineFxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         WorldRenderEvents.END_MAIN.register(CineFxWorldRenderer::render);
+        WorldRenderEvents.END_MAIN.register(CineFxLightingBridge::render);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "hud"), CineFxHudRenderer::render);
 
         ClientPlayNetworking.registerGlobalReceiver(PlayScenePayload.ID, (payload, context) ->

@@ -20,6 +20,7 @@ public final class CineFxRuntime {
     private final ArrayList<ActiveScene> active = new ArrayList<>();
     private final CustomRendererRegistry customRenderers = new CustomRendererRegistry();
     private final PostFxBackendRegistry postFxBackends = new PostFxBackendRegistry();
+    private final LightingBackendRegistry lightingBackends = new LightingBackendRegistry();
 
     private CineFxRuntime() { }
 
@@ -57,6 +58,7 @@ public final class CineFxRuntime {
 
     public CustomRendererRegistry customRenderers() { return customRenderers; }
     public PostFxBackendRegistry postFxBackends() { return postFxBackends; }
+    public LightingBackendRegistry lightingBackends() { return lightingBackends; }
 
     public static double absoluteGameTick(MinecraftClient client) {
         if (client.world == null) return 0.0;
