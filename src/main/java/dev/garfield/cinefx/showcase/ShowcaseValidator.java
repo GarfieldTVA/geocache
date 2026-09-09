@@ -8,11 +8,12 @@ import dev.garfield.cinefx.api.SceneElement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Structural QA for the built-in showcase catalog. */
+/** Structural QA for the built-in showcase and long-form preset catalogs. */
 public final class ShowcaseValidator {
     private ShowcaseValidator() { }
 
@@ -20,8 +21,11 @@ public final class ShowcaseValidator {
         ArrayList<String> errors = new ArrayList<>();
         ArrayList<String> warnings = new ArrayList<>();
         int elements = 0;
+        LinkedHashMap<String, net.minecraft.util.Identifier> catalog = new LinkedHashMap<>();
+        catalog.putAll(ShowcaseScenes.catalog());
+        catalog.putAll(MegaEventPresets.catalog());
 
-        for (Map.Entry<String, net.minecraft.util.Identifier> entry : ShowcaseScenes.catalog().entrySet()) {
+        for (Map.Entry<String, net.minecraft.util.Identifier> entry : catalog.entrySet()) {
             SceneDefinition scene = CineFxApi.find(entry.getValue()).orElse(null);
             if (scene == null) {
                 errors.add(entry.getKey() + ": scene is not registered");
@@ -52,7 +56,7 @@ public final class ShowcaseValidator {
             for (String key : graph.keySet()) detectCycle(scene, key, graph, done, visiting, errors);
         }
 
-        return new Report(errors.isEmpty(), ShowcaseScenes.catalog().size(), elements,
+        return new Report(errors.isEmpty(), catalog.size(), elements,
                 List.copyOf(errors), List.copyOf(warnings));
     }
 
