@@ -12,6 +12,8 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
@@ -19,6 +21,11 @@ import net.minecraft.util.math.Vec3d;
 public final class CineFxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
+        CineFxAssetPreloader.register(
+                Identifier.of(CineFx.MOD_ID, "builtin_gltf"),
+                -1000,
+                CineFxClient::preloadGltf);
+
         CineFxRuntime.INSTANCE.cinematicBackends().register(
                 Identifier.of(CineFx.MOD_ID, "vanilla_actors"),
                 -1000,
@@ -57,12 +64,36 @@ public final class CineFxClient implements ClientModInitializer {
             CineFxRuntime.INSTANCE.clear();
             CineFxSceneGraphBridge.clear();
             CineFxVanillaActorRenderer.clear();
+            CineFxPremiumGltfRenderer.clear();
             CineFxGltfRenderer.clear();
             CineFxPlayerControlState.clear();
             CineFxAudioLayerMixer.clear();
             CineFxNativeVisualFallback.clear();
             AdaptiveQualityController.reset();
         });
+    }
+
+    private static boolean preloadGltf(Identifier logical) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) return false;
+        ResourceManager manager = client.getResourceManager();
+        if (!hasGltfResource(manager, logical)) return false;
+        CineFxPremiumGltfRenderer.preload(logical);
+        CineFxGltfRenderer.preload(logical);
+        return true;
+    }
+
+    private static boolean hasGltfResource(ResourceManager manager, Identifier logical) {
+        String namespace = logical.getNamespace();
+        String path = logical.getPath();
+        if ((path.endsWith(".gltf") || path.endsWith(".glb")) && manager.getResource(logical).isPresent()) return true;
+        String clean = path;
+        if (clean.startsWith("models/")) clean = clean.substring(7);
+        if (clean.startsWith("model/")) clean = clean.substring(6);
+        return manager.getResource(Identifier.of(namespace, "cinefx/models/" + clean + ".glb")).isPresent()
+                || manager.getResource(Identifier.of(namespace, "cinefx/models/" + clean + ".gltf")).isPresent()
+                || manager.getResource(Identifier.of(namespace, "models/" + clean + ".glb")).isPresent()
+                || manager.getResource(Identifier.of(namespace, "models/" + clean + ".gltf")).isPresent();
     }
 
     private static Identifier parse(String raw) {
