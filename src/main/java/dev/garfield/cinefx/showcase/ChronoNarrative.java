@@ -31,7 +31,7 @@ final class ChronoNarrative {
                 "wander", 1.8, 0.014, "walk"));
         movingMesh(b, "nx_primary_drone", 0, 6900, DRONE,
                 route(6900, new Vec3d(-8, 4, 18), new Vec3d(7, 5, 22), new Vec3d(9, 6, 14), new Vec3d(-6, 4, 12), new Vec3d(-8, 4, 18)),
-                new Vec3d(0.95, 0.95, 0.95), 0xFFC2FBFF, 0.62, "crystal", 8));
+                new Vec3d(0.95, 0.95, 0.95), 0xFFC2FBFF, 0.62, "crystal", 8);
         b.add(mesh("nx_demo_beacon", 0, 6900, null, PYLON, new Vec3d(0, 0, 18),
                 new Vec3d(1.0, 1.0, 1.0), 0xFF8CF3FF, 0.7, "crystal"));
         b.add(text("nx_intro", 70, 470, "CHRONO TEST // 60 SECOND LOCAL REWIND", new Vec3d(0, 8.5, 14), 0xFFC9F8FF));
@@ -60,7 +60,7 @@ final class ChronoNarrative {
         b.add(text("nx_uncommanded", 1360, 1700, "UNCOMMANDED RESET", new Vec3d(0, 9.5, 14), 0xFFFFA7D9));
         movingMesh(b, "nx_echo_drone", 1420, 6800, DRONE,
                 route(5380, new Vec3d(8, 5, 18), new Vec3d(-7, 6, 22), new Vec3d(-10, 5, 14), new Vec3d(7, 4, 12), new Vec3d(8, 5, 18)),
-                new Vec3d(0.9, 0.9, 0.9), 0xFFFF92E5, 0.55, "crystal", -9));
+                new Vec3d(0.9, 0.9, 0.9), 0xFFFF92E5, 0.55, "crystal", -9);
 
         // 1:25–2:00 void echo overwrites only one quadrant.
         sector(b, "nx_void_sector", 1700, 6000, Blocks.OBSIDIAN.getDefaultState(), new Vec3d(-17, 0, 31), 18, 0xFFFF61E8);
@@ -90,7 +90,7 @@ final class ChronoNarrative {
                     route(2400, new Vec3d(17 + Math.cos(a) * 18, 5 + (i % 3) * 2, 5 + Math.sin(a) * 18),
                             new Vec3d(Math.cos(a + 1.2) * 14, 8, 18 + Math.sin(a + 1.2) * 14),
                             new Vec3d(Math.cos(a + 2.5) * 9, 9, 18 + Math.sin(a + 2.5) * 9)),
-                    new Vec3d(0.78, 0.78, 0.78), 0xFF71F7FF, 0.72, "crystal", 14));
+                    new Vec3d(0.78, 0.78, 0.78), 0xFF71F7FF, 0.72, "crystal", 14);
         }
         b.add(text("nx_neon_label", 3920, 4260, "TIMELINE ECHO // FUTURE", new Vec3d(8, 10, 13), 0xFF9CFAFF));
 
@@ -131,14 +131,14 @@ final class ChronoNarrative {
                 "wander", 1.8, 0.014, "walk"));
         movingMesh(b, "nx_extra_drone", 6740, 7420, DRONE,
                 route(680, new Vec3d(10, 5, 20), new Vec3d(7, 7, 24), new Vec3d(3, 9, 20), new Vec3d(0, 12, 18)),
-                new Vec3d(0.85, 0.85, 0.85), 0xFFFF8EE2, 0.62, "crystal", -7));
+                new Vec3d(0.85, 0.85, 0.85), 0xFFFF8EE2, 0.62, "crystal", -7);
         b.add(text("nx_anomaly", 6890, 7180, "ONE OBJECT DOES NOT BELONG", new Vec3d(0, 9.5, 14), 0xFFFFB4EB));
         b.add(portal("nx_cleanup_gate", 7040, 7480, new Vec3d(0, 12, 18), new Vec3d(6, 8, 0.2), 0xFFFF75E2, 0.72));
 
         // 6:05–6:30 clean timeline. The anomaly flies away, portal closes, normal route resumes.
         movingMesh(b, "nx_drone_exit", 7240, 7550, DRONE,
                 route(310, new Vec3d(3, 9, 20), new Vec3d(1, 11, 19), new Vec3d(0, 12, 18), new Vec3d(0, 12, 18)),
-                new Vec3d(0.75, 0.75, 0.75), 0xFFFF94E5, 0.72, "crystal", 0));
+                new Vec3d(0.75, 0.75, 0.75), 0xFFFF94E5, 0.72, "crystal", 0);
         b.add(material("nx_gate_dissolve", 7440, 7700, "nx_cleanup_gate", UltraEventElement.MaterialMode.DISSOLVE, 0xFFFFFFFF));
         b.add(text("nx_final", 7520, d, "TIMELINE 01 // STABLE", new Vec3d(0, 9, 14), 0xFFAFFFF0));
         b.add(sound("nx_final_chime", 7560, Identifier.ofVanilla("block.amethyst_block.chime"), new Vec3d(0, 2, 18), 1.0f, 1.25f));

@@ -39,7 +39,7 @@ final class TitanNarrative {
                     route(1350, new Vec3d(Math.cos(a) * 9, 4.2, 19 + Math.sin(a) * 9),
                             new Vec3d(Math.cos(a + 1.3) * 6, 5.0, 19 + Math.sin(a + 1.3) * 6),
                             new Vec3d(Math.cos(a + 2.5) * 8, 4.5, 19 + Math.sin(a + 2.5) * 8)),
-                    new Vec3d(0.72, 0.72, 0.72), 0xFFFFD09A, 0.32, "crystal", 5));
+                    new Vec3d(0.72, 0.72, 0.72), 0xFFFFD09A, 0.32, "crystal", 5);
         }
         b.add(text("tr_excavation_label", 70, 430, "EXCAVATION 07 // UNKNOWN POWER SOURCE", new Vec3d(0, 8.5, 14), 0xFFFFE3C1));
         b.add(camera("tr_establish", 0, 260,
@@ -111,7 +111,7 @@ final class TitanNarrative {
                     route(1850, new Vec3d(Math.cos(a) * 19, 7, 18 + Math.sin(a) * 19),
                             new Vec3d(Math.cos(a + 1.1) * 12, 8, 8 + Math.sin(a + 1.1) * 12),
                             new Vec3d(Math.cos(a + 2.3) * 9, 6, 13 + Math.sin(a + 2.3) * 9)),
-                    new Vec3d(0.85, 0.85, 0.85), 0xFF9DF4FF, 0.52, "crystal", 9));
+                    new Vec3d(0.85, 0.85, 0.85), 0xFF9DF4FF, 0.52, "crystal", 9);
         }
 
         // 3:15–3:55 battle: Titan does something only this event does — it rips a whole structure out of the ground.

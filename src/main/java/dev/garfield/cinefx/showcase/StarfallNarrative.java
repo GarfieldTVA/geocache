@@ -34,7 +34,7 @@ final class StarfallNarrative {
             movingMesh(b, "inv_patrol_drone_" + i, 0, 1350, DRONE,
                     route(1350, new Vec3d(side * 12, 5, 8), new Vec3d(side * 8, 6, 20),
                             new Vec3d(-side * 5, 5, 25), new Vec3d(side * 13, 6, 14)),
-                    new Vec3d(0.8, 0.8, 0.8), 0xFFBDF8FF, 0.38, "crystal", side * 5));
+                    new Vec3d(0.8, 0.8, 0.8), 0xFFBDF8FF, 0.38, "crystal", side * 5);
         }
         b.add(text("inv_day_label", 60, 420, "STARFALL OUTPOST // ALL CLEAR", new Vec3d(0, 8, 14), 0xFFCFE9FF));
 
@@ -47,7 +47,7 @@ final class StarfallNarrative {
         for (int i = 0; i < passes.length; i++) {
             double start = 430 + i * 170.0;
             movingMesh(b, "inv_scout_" + i, start, start + 760, FIGHTER,
-                    route(760, passes[i]), new Vec3d(1.6, 1.6, 1.6), 0xFF9CB8FF, 0.28, "ship", i % 2 == 0 ? -14 : 14));
+                    route(760, passes[i]), new Vec3d(1.6, 1.6, 1.6), 0xFF9CB8FF, 0.28, "ship", i % 2 == 0 ? -14 : 14);
             b.add(attachedParticles("inv_scout_trail_" + i, start, start + 760, "inv_scout_" + i + "_root",
                     new Vec3d(0, 0, -2.2), Identifier.ofVanilla("end_rod"), 120, 0.18, 0.18));
         }
@@ -101,7 +101,7 @@ final class StarfallNarrative {
         // 2:35–3:10 one scout is hit and crashes through a defense node.
         movingMesh(b, "inv_damaged_fighter", 3050, 3500, FIGHTER,
                 route(450, new Vec3d(38, 16, -20), new Vec3d(18, 10, 4), new Vec3d(13, 5, 9), new Vec3d(14, 1, 8)),
-                new Vec3d(1.8, 1.8, 1.8), 0xFFFFB08A, 0.5, "ship", 24));
+                new Vec3d(1.8, 1.8, 1.8), 0xFFFFB08A, 0.5, "ship", 24);
         b.add(fracture("inv_fighter_crash", 3460, 3820, "inv_damaged_fighter_root", FIGHTER, 1450,
                 0xFFFFC29A, new Vec3d(0.5, 0.2, 0.2), 4.0));
         b.add(gravityExplosion("inv_crash_blocks", 3460, 4020, defense[1], 1050,
@@ -120,7 +120,7 @@ final class StarfallNarrative {
                     route(1250, new Vec3d(Math.cos(a) * 18, 5, 18 + Math.sin(a) * 18),
                             new Vec3d(Math.cos(a + 0.9) * 9, 6, 18 + Math.sin(a + 0.9) * 9),
                             new Vec3d(Math.cos(a + 1.8) * 16, 7, 18 + Math.sin(a + 1.8) * 16)),
-                    new Vec3d(0.9, 0.9, 0.9), 0xFF9EFFFF, 0.55, "crystal", i % 2 == 0 ? 12 : -12));
+                    new Vec3d(0.9, 0.9, 0.9), 0xFF9EFFFF, 0.55, "crystal", i % 2 == 0 ? 12 : -12);
         }
 
         // 3:45–4:20 mothership beam: charge, fire, then a moving ground-level destruction line.
@@ -146,7 +146,7 @@ final class StarfallNarrative {
             movingMesh(b, "inv_counter_fighter_" + i, start, start + 700, FIGHTER,
                     route(700, new Vec3d(side * 45, 12 + i * 4, 62), new Vec3d(side * 28, 20 + i * 5, 42),
                             new Vec3d(side * 12, 29 + i * 3, 31), new Vec3d(side * 4, 36, 24)),
-                    new Vec3d(1.5, 1.5, 1.5), 0xFF7DF6FF, 0.72, "ship", side * 18));
+                    new Vec3d(1.5, 1.5, 1.5), 0xFF7DF6FF, 0.72, "ship", side * 18);
             b.add(attachedParticles("inv_counter_trail_" + i, start, start + 700, "inv_counter_fighter_" + i + "_root",
                     new Vec3d(0, 0, -2.2), Identifier.ofVanilla("electric_spark"), 260, 0.25, 0.45));
             b.add(sound("inv_engine_hit_" + i, start + 610, Identifier.ofVanilla("entity.generic.explode"),
