@@ -21,7 +21,8 @@ public final class EventDirectorCommands {
         if (initialized) return;
         initialized = true;
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            var root = CommandManager.literal("cinefxevent").requires(source -> source.hasPermissionLevel(2));
+            var root = CommandManager.literal("cinefxevent")
+                    .requires(CommandManager.requirePermissionLevel(CommandManager.GAMEMASTERS_CHECK));
 
             root.then(CommandManager.literal("list").executes(context -> list(context.getSource())));
             root.then(CommandManager.literal("stopall").executes(context -> stopAll(context.getSource())));
