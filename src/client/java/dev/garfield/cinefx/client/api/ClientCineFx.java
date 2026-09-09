@@ -6,6 +6,8 @@ import dev.garfield.cinefx.client.AdaptiveQualityController;
 import dev.garfield.cinefx.client.CineFxAssetPreloader;
 import dev.garfield.cinefx.client.CineFxDebugOverlay;
 import dev.garfield.cinefx.client.CineFxRuntime;
+import dev.garfield.cinefx.client.CineFxUltraEditorOverlay;
+import dev.garfield.cinefx.client.UltraBackendRegistry;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
@@ -43,6 +45,10 @@ public final class ClientCineFx {
         CineFxRuntime.INSTANCE.cinematicBackends().register(id, priority, backend);
     }
 
+    public static void registerUltraBackend(Identifier id, int priority, UltraBackend backend) {
+        UltraBackendRegistry.INSTANCE.register(id, priority, backend);
+    }
+
     public static void registerAssetPreloader(Identifier id, int priority, AssetPreloadBackend backend) {
         CineFxAssetPreloader.register(id, priority, backend);
     }
@@ -55,6 +61,7 @@ public final class ClientCineFx {
     public static void forceQuality(QualityTier tier) { AdaptiveQualityController.force(tier); }
     public static void automaticQuality() { AdaptiveQualityController.automatic(); }
     public static void debugOverlay(boolean enabled) { CineFxDebugOverlay.setEnabled(enabled); }
+    public static void ultraEditor(boolean enabled) { CineFxUltraEditorOverlay.setEnabled(enabled); }
 
     public static void onMarker(EventMarkerListener listener) {
         CineFxRuntime.INSTANCE.addMarkerListener(listener);
