@@ -107,7 +107,7 @@ final class ZeroPointNarrative {
                     route(900, new Vec3d(Math.cos(a) * 24, 9, 18 + Math.sin(a) * 24),
                             new Vec3d(Math.cos(a + 0.7) * 13, 8, 18 + Math.sin(a + 0.7) * 13),
                             new Vec3d(Math.cos(a + 1.4) * 8, 7, 18 + Math.sin(a + 1.4) * 8)),
-                    new Vec3d(0.9, 0.9, 0.9), 0xFFAEF8FF, 0.55, "crystal", 10));
+                    new Vec3d(0.9, 0.9, 0.9), 0xFFAEF8FF, 0.55, "crystal", 10);
             b.add(beam(drone + "_beam", 4140, 4700, drone + "_root", Vec3d.ZERO,
                     new Vec3d(-Math.cos(a) * 8, -2.5, -Math.sin(a) * 8), 0.11, 0xFF6BEFFF));
         }
