@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import dev.garfield.cinefx.api.ComplexElement;
 import dev.garfield.cinefx.client.api.CinematicBackend.ActorFrame;
 import dev.garfield.cinefx.client.api.CinematicBackend.AnimationSample;
+import dev.garfield.cinefx.client.api.CinematicBackend.BoneSample;
 import dev.garfield.cinefx.client.api.CinematicBackend.SceneRenderContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.OtherClientPlayerEntity;
@@ -11,12 +12,17 @@ import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.entity.EntityRenderManager;
 import net.minecraft.client.render.entity.state.EntityRenderState;
 import net.minecraft.client.render.entity.state.LivingEntityRenderState;
+import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnReason;
+import net.minecraft.entity.player.PlayerSkinType;
+import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.registry.Registries;
+import net.minecraft.util.AssetInfo;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
@@ -24,6 +30,7 @@ import org.joml.Matrix4fc;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -78,13 +85,18 @@ final class CineFxVanillaActorRenderer {
             state.nameLabelPos = null;
             state.outlineColor = EntityRenderState.NO_OUTLINE;
             state.onFire = false;
-            state.shadowPieces.clear(); // CineFX owns the actor shadow channel.
+            state.shadowPieces.clear();
             state.shadowRadius = 0.0F;
             state.light = frame.emissive() >= 0.999
                     ? 0xF000F0
                     : WorldRenderer.getLightmapCoordinates(client.world, entity.getBlockPos());
 
-            if (state instanceof LivingEntityRenderState living) applyVanillaAnimation(living, frame.animations());
+            if (state instanceof PlayerEntityRenderState playerState) applyPlayerAppearance(playerState, frame);
+            if (state instanceof LivingEntityRenderState living) {
+                applyVanillaAnimation(living, frame.animations());
+                applyLookAt(living, frame);
+                applySimpleBoneOverrides(living, frame.boneOverrides());
+            }
 
             Matrix4f relative = new Matrix4f()
                     .translation((float)-context.cameraPosition().x,
@@ -127,6 +139,23 @@ final class CineFxVanillaActorRenderer {
         }
     }
 
+    private static void applyPlayerAppearance(PlayerEntityRenderState state, ActorFrame frame) {
+        if (frame.skinTexture() == null) return;
+        PlayerSkinType skinType = skinType(frame.appearance());
+        state.skinTextures = SkinTextures.create(
+                new AssetInfo.TextureAssetInfo(frame.skinTexture()), null, null, skinType);
+    }
+
+    private static PlayerSkinType skinType(Map<String, String> appearance) {
+        String raw = appearance == null ? null : appearance.get("skin_type");
+        if (raw == null && appearance != null) raw = appearance.get("model");
+        if (raw == null) return PlayerSkinType.WIDE;
+        return switch (raw.toLowerCase(Locale.ROOT)) {
+            case "slim", "alex" -> PlayerSkinType.SLIM;
+            default -> PlayerSkinType.WIDE;
+        };
+    }
+
     private static void applyVanillaAnimation(LivingEntityRenderState state, List<AnimationSample> animations) {
         state.bodyYaw = 0.0F;
         state.relativeHeadYaw = 0.0F;
@@ -162,6 +191,50 @@ final class CineFxVanillaActorRenderer {
                 default -> { }
             }
         }
+    }
+
+    private static void applyLookAt(LivingEntityRenderState state, ActorFrame frame) {
+        Vec3d target = frame.lookAt();
+        if (target == null) return;
+        Vec3d origin = frame.worldPosition();
+        Vec3d direction = target.subtract(origin);
+        if (direction.lengthSquared() < 1.0e-8) return;
+
+        Vec3d forwardPoint = point(frame.worldMatrix(), new Vec3d(0.0, 0.0, 1.0));
+        Vec3d forward = forwardPoint.subtract(origin);
+        float rootYaw = forward.horizontalLengthSquared() < 1.0e-8
+                ? 0.0F
+                : (float)Math.toDegrees(Math.atan2(-forward.x, forward.z));
+        float targetYaw = (float)Math.toDegrees(Math.atan2(-direction.x, direction.z));
+        double horizontal = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+        float targetPitch = (float)-Math.toDegrees(Math.atan2(direction.y, horizontal));
+
+        state.relativeHeadYaw = MathHelper.clamp(MathHelper.wrapDegrees(targetYaw - rootYaw), -85.0F, 85.0F);
+        state.pitch = MathHelper.clamp(targetPitch, -90.0F, 90.0F);
+    }
+
+    private static void applySimpleBoneOverrides(LivingEntityRenderState state, List<BoneSample> bones) {
+        for (BoneSample bone : bones) {
+            double weight = Math.max(0.0, Math.min(1.0, bone.weight()));
+            if (weight <= 0.0001) continue;
+            String name = bone.bone().toLowerCase(Locale.ROOT);
+            Vec3d rotation = bone.transform().rotationDegrees();
+            float wx = (float)(rotation.x * weight);
+            float wy = (float)(rotation.y * weight);
+            if (name.equals("head") || name.equals("neck")) {
+                state.pitch = MathHelper.clamp(state.pitch + wx, -90.0F, 90.0F);
+                state.relativeHeadYaw = MathHelper.clamp(state.relativeHeadYaw + wy, -90.0F, 90.0F);
+            } else if (name.equals("body") || name.equals("root") || name.equals("torso")) {
+                state.bodyYaw = MathHelper.wrapDegrees(state.bodyYaw + wy);
+            }
+        }
+    }
+
+    private static Vec3d point(Matrix4fc matrix, Vec3d local) {
+        return new Vec3d(
+                matrix.m00() * local.x + matrix.m10() * local.y + matrix.m20() * local.z + matrix.m30(),
+                matrix.m01() * local.x + matrix.m11() * local.y + matrix.m21() * local.z + matrix.m31(),
+                matrix.m02() * local.x + matrix.m12() * local.y + matrix.m22() * local.z + matrix.m32());
     }
 
     private static String signature(ActorFrame frame) {

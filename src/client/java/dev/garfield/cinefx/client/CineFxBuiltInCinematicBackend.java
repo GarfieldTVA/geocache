@@ -13,6 +13,11 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
     }
 
     @Override
+    public boolean mixAudioLayers(List<AudioLayerFrame> layers) {
+        return CineFxAudioLayerMixer.apply(layers);
+    }
+
+    @Override
     public boolean applyPlayerControl(PlayerControlFrame control) {
         return CineFxPlayerControlState.apply(control);
     }
