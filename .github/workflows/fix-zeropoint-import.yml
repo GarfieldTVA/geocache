@@ -1,0 +1,36 @@
+name: fix-zeropoint-import
+
+on:
+  push:
+    branches: [ feature/cinefx-1.21.11 ]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/cinefx-1.21.11
+      - name: Add missing PathTrack import
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/main/java/dev/garfield/cinefx/showcase/ZeroPointNarrative.java')
+          s = p.read_text(encoding='utf-8')
+          marker = 'import dev.garfield.cinefx.api.ComplexElement;\n'
+          line = 'import dev.garfield.cinefx.api.PathTrack;\n'
+          if line not in s:
+              if marker not in s:
+                  raise SystemExit('Import insertion marker missing')
+              s = s.replace(marker, marker + line, 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/main/java/dev/garfield/cinefx/showcase/ZeroPointNarrative.java
+          git commit -m 'Fix ZeroPoint PathTrack import [skip ci]'
+          git push origin HEAD:feature/cinefx-1.21.11
