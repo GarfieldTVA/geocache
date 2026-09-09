@@ -5,6 +5,7 @@ import dev.garfield.cinefx.api.EventDirector;
 import dev.garfield.cinefx.api.SceneOptions;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.server.command.CommandManager;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.Map;
@@ -37,6 +38,18 @@ public final class ShowcaseCommands {
                 EventDirector.INSTANCE.start(source.getServer(), source.getWorld(), ShowcaseScenes.masterProgram(),
                         source.getPosition(), 256.0, now ^ 0x51CE_F00DL, Map.of("showcase", "marathon"));
                 return 1;
+            }));
+            root.then(CommandManager.literal("verify").executes(context -> {
+                ShowcaseValidator.Report report = ShowcaseValidator.validateAll();
+                var source = context.getSource();
+                source.sendFeedback(() -> Text.literal("CineFX showcase QA: " + (report.ok() ? "OK" : "FAILED")
+                        + " scenes=" + report.scenes() + " elements=" + report.elements()
+                        + " warnings=" + report.warnings().size() + " errors=" + report.errors().size()), false);
+                for (String warning : report.warnings()) {
+                    source.sendFeedback(() -> Text.literal("[CineFX warning] " + warning), false);
+                }
+                for (String error : report.errors()) source.sendError(Text.literal("[CineFX error] " + error));
+                return report.ok() ? 1 : 0;
             }));
             dispatcher.register(root);
         });
