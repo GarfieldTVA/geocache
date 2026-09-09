@@ -1,0 +1,57 @@
+# CineFX — LLM / coding-agent entrypoint
+
+CineFX is a Fabric 1.21.11 cinematic-event framework. This file is intentionally compact and should be read before generating a dependent mod.
+
+## Hard rules
+
+- Public API only: `dev.garfield.cinefx.api.*` and client-only `dev.garfield.cinefx.client.api.*`.
+- Do not use CineFX internal `dev.garfield.cinefx.client.*` classes from a dependent mod.
+- Keep gameplay/world mutation server-authoritative.
+- Do not network transforms every tick. Synchronize scene id + anchor + start tick + seed + small variables.
+- Prefer CineFX virtual rendering over Display entities / ArmorStands / tracker-heavy fake entities.
+- Prefer built-in primitives before custom renderers.
+- Use `EventProgram` + `EventDirector` for multi-phase live events.
+- Use `AssetBundle` preload for important glTF/GLB and renderer-owned assets.
+- Use `EventSignals` for gameplay-driven branches.
+- Use `InstanceBatch`, `Crowd`, `ParticleField` and culling for scale.
+- Scalar tracks require `Double` keyframe values (`0.0`, `1.0`, not integer-only keyframes).
+- Run `./gradlew build` before claiming completion.
+
+## API layers
+
+1. `SceneElement` — simple visual primitives.
+2. `ComplexElement` — actors, meshes, batches, graph nodes, trails, decals, shadows, volumes.
+3. `AdvancedEventElement` — attachments, crowds, sky, audio layers, player control, mega-environments.
+4. `UltraEventElement` — post FX, light rigs, fracture, soft bodies, IK, particle fields, camera rigs, spatial audio, material FX, deformation, portals, editor markers.
+5. Client SPIs — `CustomWorldRenderer`, `CinematicBackend`, `UltraBackend`, lighting/post-FX/audio integrations.
+
+## Client registration
+
+Use `ClientCineFx` for playback and integrations:
+
+- `play`, `stop`, `stopAll`
+- `registerRenderer`
+- `registerPostFxBackend`
+- `registerLightingBackend`
+- `registerCinematicBackend`
+- `registerUltraBackend`
+- `registerAssetPreloader`
+- `preload`
+- `quality`, `forceQuality`, `automaticQuality`
+- `debugOverlay`, `ultraEditor`
+- `onMarker`
+
+## AI reading order
+
+- `AGENTS.md` — non-negotiable coding rules.
+- `docs/AI_INTEGRATION_GUIDE.md` — how to generate a compatible mod.
+- `docs/FEATURE_MATRIX.md` — choose the correct primitive/API.
+- `docs/ULTRA.md` — Ultra element reference.
+- `docs/EVENT_ENGINE.md` — Director, phases, preload, resync, variables, signals.
+- `docs/BACKENDS.md` — renderer/audio backend contract and fallbacks.
+- `docs/PERFORMANCE.md` — scaling rules.
+- `docs/SHOWCASES.md` and `src/main/java/dev/garfield/cinefx/showcase/` — reference implementations.
+
+## Source of truth
+
+When docs and implementation disagree, the public API source on `feature/cinefx-1.21.11` wins. Do not invent constructors, enum values, methods or resource paths. Inspect the actual record/class signature before emitting final code.
