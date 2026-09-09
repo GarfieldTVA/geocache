@@ -89,9 +89,9 @@ public final class UltraShowcase {
                         Map.entry(UltraEventElement.PostEffect.HEAT_HAZE, ScalarTrack.constant(0.03)),
                         Map.entry(UltraEventElement.PostEffect.UNDERWATER_REFRACTION, ScalarTrack.constant(0.0)),
                         Map.entry(UltraEventElement.PostEffect.GLITCH,
-                                ScalarTrack.of(Keyframe.at(0, 0), Keyframe.at(650, 0), Keyframe.at(730, 0.38), Keyframe.at(800, 0.02))),
+                                ScalarTrack.of(Keyframe.at(0, 0.0), Keyframe.at(650, 0.0), Keyframe.at(730, 0.38), Keyframe.at(800, 0.02))),
                         Map.entry(UltraEventElement.PostEffect.TRANSITION,
-                                ScalarTrack.of(Keyframe.at(0, 0.7, Easing.EASE_OUT_CUBIC), Keyframe.at(35, 0), Keyframe.at(950, 0), Keyframe.at(d, 1)))),
+                                ScalarTrack.of(Keyframe.at(0, 0.7, Easing.EASE_OUT_CUBIC), Keyframe.at(35, 0.0), Keyframe.at(950, 0.0), Keyframe.at(d, 1.0)))),
                 ColorTrack.constant(0x081D6A80), ScalarTrack.constant(14), ScalarTrack.constant(6),
                 Map.of("profile", "ultra_showcase")));
 
@@ -131,7 +131,7 @@ public final class UltraShowcase {
                         Vec3Track.angles(Keyframe.at(0, new Vec3d(0, 0, 0))),
                         Vec3Track.constant(new Vec3d(1, 1, 1)), Vec3Track.constant(Vec3d.ZERO)),
                 MotionCurve.none(), new Vec3d(9, 12, 0.2), id("showcase/void_cataclysm"),
-                new Vec3d(0, 18, 28), ScalarTrack.of(Keyframe.at(0, 0), Keyframe.at(80, 1, Easing.EASE_OUT_CUBIC)),
+                new Vec3d(0, 18, 28), ScalarTrack.of(Keyframe.at(0, 0.0), Keyframe.at(80, 1.0, Easing.EASE_OUT_CUBIC)),
                 ColorTrack.constant(0xFF7AEFFF), ScalarTrack.of(Keyframe.at(0, 0.15), Keyframe.at(500, 0.7)),
                 2, 620, Map.of("premium", "render-target-eligible")));
 
@@ -139,7 +139,7 @@ public final class UltraShowcase {
                 "ultra_sentinel", List.of(
                 new UltraEventElement.IkGoal("root_joint>tip_joint", UltraEventElement.IkMode.CCD,
                         "tip_joint", "root_joint", new Vec3d(0, 0, 0), "ultra_portal",
-                        ScalarTrack.of(Keyframe.at(0, 0), Keyframe.at(100, 0.85), Keyframe.at(d, 1)),
+                        ScalarTrack.of(Keyframe.at(0, 0.0), Keyframe.at(100, 0.85), Keyframe.at(d, 1.0)),
                         8, 0.01, Map.of("yaw_offset", "-4")),
                 new UltraEventElement.IkGoal("tip_joint", UltraEventElement.IkMode.AIM,
                         "tip_joint", "", new Vec3d(0, 2.5, -2), null, ScalarTrack.constant(0.45),
@@ -156,7 +156,7 @@ public final class UltraShowcase {
                 ScalarTrack.constant(1.8), new Vec3d(0, 1, 0), Map.of()));
         b.add(new UltraEventElement.MaterialEffect("sentinel_corruption", 700, d, 117, ConflictPolicy.ALLOW,
                 "ultra_sentinel", UltraEventElement.MaterialMode.CORRUPTION,
-                ScalarTrack.of(Keyframe.at(0, 0), Keyframe.at(150, 0.82, Easing.EASE_OUT_CUBIC)),
+                ScalarTrack.of(Keyframe.at(0, 0.0), Keyframe.at(150, 0.82, Easing.EASE_OUT_CUBIC)),
                 ScalarTrack.constant(0.10), ColorTrack.constant(0xFFFF3FCF), ScalarTrack.constant(3.0),
                 ScalarTrack.constant(2.0), new Vec3d(0, 1, 0), Map.of()));
 
@@ -174,7 +174,7 @@ public final class UltraShowcase {
 
         b.add(new UltraEventElement.ParticleField("energy_vortex", 40, d, 68, ConflictPolicy.ALLOW, "ultra_sentinel",
                 Identifier.ofVanilla("electric_spark"), new Vec3d(0, 2.0, 0), AdvancedTransformTrack.identity(), MotionCurve.none(),
-                ScalarTrack.of(Keyframe.at(0, 80), Keyframe.at(220, 850), Keyframe.at(760, 1800), Keyframe.at(d, 380)),
+                ScalarTrack.of(Keyframe.at(0, 80.0), Keyframe.at(220, 850.0), Keyframe.at(760, 1800.0), Keyframe.at(d, 380.0)),
                 ScalarTrack.constant(65), ScalarTrack.constant(0.28), ScalarTrack.constant(1.0),
                 ColorTrack.constant(0xFF7EEDFF), List.of(
                 new UltraEventElement.Force(UltraEventElement.ForceKind.VORTEX, Vec3d.ZERO, new Vec3d(0, 1, 0),
@@ -189,13 +189,13 @@ public final class UltraShowcase {
 
         b.add(new UltraEventElement.WorldDeform("ground_reaction", 300, 900, 65, ConflictPolicy.ALLOW,
                 new Vec3d(0, 0.03, 14), UltraEventElement.DeformMode.PULSE,
-                ScalarTrack.of(Keyframe.at(0, 2), Keyframe.at(180, 14, Easing.EASE_OUT_CUBIC), Keyframe.at(600, 22)),
+                ScalarTrack.of(Keyframe.at(0, 2.0), Keyframe.at(180, 14.0, Easing.EASE_OUT_CUBIC), Keyframe.at(600, 22.0)),
                 ScalarTrack.constant(2.8), ScalarTrack.constant(1.4), ScalarTrack.constant(1.0), null,
                 ColorTrack.constant(0xFF45DAFF), true, Map.of()));
         b.add(new UltraEventElement.WorldDeform("ground_fissure", 660, d, 66, ConflictPolicy.ALLOW,
                 new Vec3d(0, 0.02, 14), UltraEventElement.DeformMode.FISSURE, ScalarTrack.constant(24),
                 ScalarTrack.constant(4.2), ScalarTrack.constant(1),
-                ScalarTrack.of(Keyframe.at(0, 0), Keyframe.at(130, 1, Easing.EASE_OUT_CUBIC)), null,
+                ScalarTrack.of(Keyframe.at(0, 0.0), Keyframe.at(130, 1.0, Easing.EASE_OUT_CUBIC)), null,
                 ColorTrack.constant(0xFFFF4FD7), true, Map.of()));
 
         b.add(new UltraEventElement.Fracture("hero_fracture", 720, 970, 85, ConflictPolicy.ALLOW, null,
@@ -213,8 +213,8 @@ public final class UltraShowcase {
                 PathTrack.Point.at(d, new Vec3d(-9, 6, 4)));
         b.add(new UltraEventElement.CameraRig("hero_camera", 0, d, 200, ConflictPolicy.REPLACE_LOWER,
                 UltraEventElement.CameraRigMode.RAIL, cameraPath, new Vec3d(0, 3.0, 14), "ultra_sentinel",
-                ScalarTrack.of(Keyframe.at(0, -2), Keyframe.at(500, 3), Keyframe.at(d, 0)),
-                ScalarTrack.of(Keyframe.at(0, 68), Keyframe.at(500, 58), Keyframe.at(750, 74), Keyframe.at(d, 64)),
+                ScalarTrack.of(Keyframe.at(0, -2.0), Keyframe.at(500, 3.0), Keyframe.at(d, 0.0)),
+                ScalarTrack.of(Keyframe.at(0, 68.0), Keyframe.at(500, 58.0), Keyframe.at(750, 74.0), Keyframe.at(d, 64.0)),
                 ScalarTrack.constant(13), ScalarTrack.constant(4),
                 ScalarTrack.of(Keyframe.at(0, 0.015), Keyframe.at(700, 0.03), Keyframe.at(730, 0.22), Keyframe.at(850, 0.03)),
                 ScalarTrack.of(Keyframe.at(0, 0.15), Keyframe.at(730, 2.2), Keyframe.at(850, 0.2)),
@@ -249,14 +249,14 @@ public final class UltraShowcase {
                         Map.entry(UltraEventElement.PostEffect.VIGNETTE, ScalarTrack.constant(0.55)),
                         Map.entry(UltraEventElement.PostEffect.FILM_GRAIN, ScalarTrack.constant(0.28)),
                         Map.entry(UltraEventElement.PostEffect.TRANSITION,
-                                ScalarTrack.of(Keyframe.at(0, 0.35), Keyframe.at(18, 0), Keyframe.at(315, 0), Keyframe.at(d, 1)))),
+                                ScalarTrack.of(Keyframe.at(0, 0.35), Keyframe.at(18, 0.0), Keyframe.at(315, 0.0), Keyframe.at(d, 1.0)))),
                 ColorTrack.constant(0x18FF203F), ScalarTrack.constant(8), ScalarTrack.constant(2.5), Map.of()));
         b.add(new UltraEventElement.LightRig("overload_lights", 0, d, 200, ConflictPolicy.ALLOW, null,
                 new Vec3d(0, 4, 14), AdvancedTransformTrack.identity(), MotionCurve.none(), List.of(
                 new UltraEventElement.RigLight(UltraEventElement.LightKind.POINT, Vec3d.ZERO, new Vec3d(0, -1, 0),
                         ColorTrack.constant(0xFFFF274E), ScalarTrack.constant(9), ScalarTrack.constant(35),
                         ScalarTrack.constant(0), ScalarTrack.constant(180), true, ScalarTrack.constant(1.0))),
-                ScalarTrack.of(Keyframe.at(0, 1), Keyframe.at(30, 0.2), Keyframe.at(55, 1), Keyframe.at(80, 0.1), Keyframe.at(d, 1)),
+                ScalarTrack.of(Keyframe.at(0, 1.0), Keyframe.at(30, 0.2), Keyframe.at(55, 1.0), Keyframe.at(80, 0.1), Keyframe.at(d, 1.0)),
                 520, Map.of()));
         b.add(new UltraEventElement.Fracture("overload_fracture", 20, d, 180, ConflictPolicy.ALLOW, null,
                 PremiumShowcase.MODEL, UltraEventElement.FractureMode.RADIAL, 3800, new Vec3d(0, 4, 14),
@@ -278,7 +278,7 @@ public final class UltraShowcase {
         b.add(new UltraEventElement.WorldDeform("overload_fissure", 0, d, 160, ConflictPolicy.ALLOW,
                 new Vec3d(0, 0.02, 14), UltraEventElement.DeformMode.FISSURE, ScalarTrack.constant(38),
                 ScalarTrack.constant(8), ScalarTrack.constant(1.2),
-                ScalarTrack.of(Keyframe.at(0, 0), Keyframe.at(90, 1, Easing.EASE_OUT_CUBIC)), null,
+                ScalarTrack.of(Keyframe.at(0, 0.0), Keyframe.at(90, 1.0, Easing.EASE_OUT_CUBIC)), null,
                 ColorTrack.constant(0xFFFF2D63), true, Map.of()));
         b.add(new UltraEventElement.PortalSurface("overload_portal", 0, d, 150, ConflictPolicy.ALLOW, null,
                 UltraEventElement.PortalMode.KALEIDOSCOPE, new Vec3d(0, 9, 28), AdvancedTransformTrack.identity(),
