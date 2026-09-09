@@ -13,6 +13,7 @@ A session keeps:
 - scene start times
 - deterministic seed
 - event variables
+- named event signals (backed by variables)
 - audience anchor/radius
 - current audience membership
 - preload requests and per-player readiness
@@ -51,7 +52,48 @@ EventDirector.SessionHandle handle = EventDirector.INSTANCE.start(
 
 Conditions can depend on time, variables and asset readiness and can be combined with `all`, `any` and `not`.
 
-Actions can start/stop scenes, set variables, request preload bundles and fire event markers. This makes the timeline branchable instead of forcing a single rigid 10-minute animation.
+Actions can start/stop scenes, set variables, request preload bundles and fire event markers. This makes the timeline branchable instead of forcing a single rigid animation.
+
+## Reactive named signals
+
+`EventSignals` is a convenience layer over Director variables for gameplay-driven branches.
+
+A phase can wait for a named signal:
+
+```java
+new EventProgram.Transition(
+        "overload",
+        100,
+        EventSignals.condition("overload"),
+        List.of()
+)
+```
+
+Authoritative server gameplay can emit it later:
+
+```java
+EventSignals.emit(handle, "overload");
+```
+
+Signals are stored under the `signal.` variable prefix. These two conditions therefore refer to the same state:
+
+```java
+EventSignals.condition("boss.dead")
+EventProgram.Condition.variableEquals("signal.boss.dead", "true")
+```
+
+Useful names include:
+
+```text
+boss.dead
+engine.left.destroyed
+players.ready
+overload
+```
+
+Use `EventSignals.clear(handle, name)` to remove a signal and `EventSignals.set(handle, name, value)` for explicit true/false state.
+
+Signals should be emitted from server-authoritative gameplay code, not from client rendering callbacks.
 
 ## Dynamic audience
 
@@ -90,7 +132,7 @@ A snapshot contains the current phase, elapsed phase time, variables and active 
 
 ## Operator commands
 
-Operators with permission level 2 can control sessions live:
+Authorized game-master/operator sources can control sessions live:
 
 ```text
 /cinefxevent list
@@ -129,10 +171,27 @@ For public events, always design the scene so the important narrative remains un
 
 ## Attachments
 
-`AdvancedEventElement.Attachment` can be parented to any transformable scene node and can carry light, particle emitter, beam, audio, text or custom payloads.
+`AdvancedEventElement.Attachment` can be parented to transformable scene nodes and can carry light, particle emitter, beam, audio, text or custom payloads.
 
-`boneName` is carried to skeletal backends. Root/node attachment is resolved by CineFX itself; a custom skeletal renderer can refine the matrix to an exact named bone/socket.
+`boneName` is carried to skeletal backends. Root/node attachment is resolved by CineFX itself; the built-in premium glTF path can refine named-node/socket attachments and a custom skeletal renderer can replace the channel for its own skeleton implementation.
+
+## Ultra events
+
+Ultra effects do not use a separate orchestration engine. Combine `UltraEventElement` scenes with the same `EventProgram`, `EventDirector`, variables, preload and signals.
+
+A common pattern is:
+
+```text
+preload
+ -> stable scene
+ -> EventSignals.emit(handle, "overload")
+ -> stop stable scene
+ -> play destruction/Ultra scene
+ -> cleanup
+```
+
+The built-in `UltraShowcase` demonstrates this branch model.
 
 ## Production recommendation
 
-Use the Director for orchestration and synchronization, scene definitions for deterministic visual content, AssetBundles for warmup, and backends only for renderer-specific capabilities. Do not replace the Director with per-tick transform packets.
+Use the Director for orchestration and synchronization, scene definitions for deterministic visual content, `EventSignals`/variables for authoritative branching, `AssetBundle`s for warmup, and backends only for renderer-specific capabilities. Do not replace the Director with per-tick transform packets.
