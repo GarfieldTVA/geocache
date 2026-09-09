@@ -19,10 +19,13 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
 
         if (!vanilla.isEmpty()) CineFxVanillaActorRenderer.render(context, List.copyOf(vanilla));
         if (!custom.isEmpty()) {
-            List<ActorFrame> missing = CineFxGltfRenderer.renderCustomActors(context, List.copyOf(custom));
-            if (!missing.isEmpty()) {
-                ArrayList<MeshFrame> proxies = new ArrayList<>(missing.size());
-                for (ActorFrame actor : missing) {
+            List<ActorFrame> premiumMissing = CineFxPremiumGltfRenderer.renderActors(context, List.copyOf(custom));
+            List<ActorFrame> referenceMissing = premiumMissing.isEmpty()
+                    ? List.of()
+                    : CineFxGltfRenderer.renderCustomActors(context, premiumMissing);
+            if (!referenceMissing.isEmpty()) {
+                ArrayList<MeshFrame> proxies = new ArrayList<>(referenceMissing.size());
+                for (ActorFrame actor : referenceMissing) {
                     proxies.add(new MeshFrame(actor.sceneInstanceId(), actor.elementKey(), actor.resourceId(), null,
                             actor.worldMatrix(), actor.worldPosition(), actor.tintArgb(), actor.opacity(), actor.emissive(),
                             actor.castShadow(), actor.appearance(), actor.localTick()));
@@ -35,9 +38,11 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
 
     @Override
     public boolean renderMeshes(SceneRenderContext context, List<MeshFrame> meshes) {
-        List<MeshFrame> missing = CineFxGltfRenderer.renderMeshes(context, meshes);
-        if (missing.isEmpty()) return true;
-        return CineFxNativeVisualFallback.renderMeshes(context, missing);
+        List<MeshFrame> premiumMissing = CineFxPremiumGltfRenderer.renderMeshes(context, meshes);
+        if (premiumMissing.isEmpty()) return true;
+        List<MeshFrame> referenceMissing = CineFxGltfRenderer.renderMeshes(context, premiumMissing);
+        if (referenceMissing.isEmpty()) return true;
+        return CineFxNativeVisualFallback.renderMeshes(context, referenceMissing);
     }
 
     @Override
@@ -57,7 +62,8 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
 
     @Override
     public boolean renderAttachments(SceneRenderContext context, List<AttachmentFrame> attachments) {
-        return CineFxNativeVisualFallback.renderAttachments(context, CineFxGltfRenderer.refineAttachments(attachments));
+        List<AttachmentFrame> premium = CineFxPremiumGltfRenderer.refineAttachments(attachments);
+        return CineFxNativeVisualFallback.renderAttachments(context, CineFxGltfRenderer.refineAttachments(premium));
     }
 
     @Override
