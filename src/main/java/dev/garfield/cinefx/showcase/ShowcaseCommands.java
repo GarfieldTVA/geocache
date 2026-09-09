@@ -20,6 +20,7 @@ public final class ShowcaseCommands {
         if (initialized) return;
         initialized = true;
         PremiumShowcase.register();
+        UltraShowcase.register();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             var root = CommandManager.literal("cinefxshowcase");
             for (Map.Entry<String, Identifier> entry : ShowcaseScenes.catalog().entrySet()) {
@@ -39,6 +40,25 @@ public final class ShowcaseCommands {
                 EventDirector.INSTANCE.start(source.getServer(), source.getWorld(), PremiumShowcase.program(),
                         source.getPosition(), 256.0, now ^ 0xC1FE_900DL, Map.of("showcase", "premium"));
                 source.sendFeedback(() -> Text.literal("CineFX premium renderer showcase started."), false);
+                return 1;
+            }));
+            root.then(CommandManager.literal("ultra").executes(context -> {
+                var source = context.getSource();
+                long now = source.getWorld().getTime();
+                EventDirector.SessionHandle handle = EventDirector.INSTANCE.start(source.getServer(), source.getWorld(),
+                        UltraShowcase.program(), source.getPosition(), 256.0, now ^ 0xC1FE_771AL,
+                        Map.of("showcase", "ultra"));
+                source.sendFeedback(() -> Text.literal("CineFX Ultra showcase started. session=" + handle.sessionId()
+                        + " (set signal.overload=true to branch into destruction)"), false);
+                return 1;
+            }));
+            root.then(CommandManager.literal("ultra_overload").executes(context -> {
+                var source = context.getSource();
+                long now = source.getWorld().getTime();
+                EventDirector.SessionHandle handle = EventDirector.INSTANCE.start(source.getServer(), source.getWorld(),
+                        UltraShowcase.program(), source.getPosition(), 256.0, now ^ 0x0A11_C0DEL,
+                        Map.of("showcase", "ultra", "signal.overload", "true"));
+                source.sendFeedback(() -> Text.literal("CineFX Ultra OVERLOAD showcase started. session=" + handle.sessionId()), false);
                 return 1;
             }));
             root.then(CommandManager.literal("marathon").executes(context -> {
