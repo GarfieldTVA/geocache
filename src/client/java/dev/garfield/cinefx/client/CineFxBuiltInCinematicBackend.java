@@ -12,7 +12,8 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
     public boolean renderActors(SceneRenderContext context, List<ActorFrame> actors) {
         ArrayList<ActorFrame> vanilla = new ArrayList<>();
         ArrayList<ActorFrame> custom = new ArrayList<>();
-        for (ActorFrame actor : actors) {
+        for (ActorFrame raw : actors) {
+            ActorFrame actor = CineFxUltraGltfEnhancer.actor(raw);
             if (actor.kind() == ComplexElement.ActorKind.CUSTOM_MODEL) custom.add(actor);
             else vanilla.add(actor);
         }
@@ -38,7 +39,9 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
 
     @Override
     public boolean renderMeshes(SceneRenderContext context, List<MeshFrame> meshes) {
-        List<MeshFrame> premiumMissing = CineFxPremiumGltfRenderer.renderMeshes(context, meshes);
+        ArrayList<MeshFrame> enhanced = new ArrayList<>(meshes.size());
+        for (MeshFrame mesh : meshes) enhanced.add(CineFxUltraGltfEnhancer.mesh(mesh));
+        List<MeshFrame> premiumMissing = CineFxPremiumGltfRenderer.renderMeshes(context, List.copyOf(enhanced));
         if (premiumMissing.isEmpty()) return true;
         List<MeshFrame> referenceMissing = CineFxGltfRenderer.renderMeshes(context, premiumMissing);
         if (referenceMissing.isEmpty()) return true;
