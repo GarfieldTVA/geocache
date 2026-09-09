@@ -1,6 +1,7 @@
 package dev.garfield.cinefx.showcase;
 
 import dev.garfield.cinefx.api.ComplexElement;
+import dev.garfield.cinefx.api.PathTrack;
 import dev.garfield.cinefx.api.SceneBuilder;
 import dev.garfield.cinefx.api.SceneDefinition;
 import dev.garfield.cinefx.api.UltraEventElement;
