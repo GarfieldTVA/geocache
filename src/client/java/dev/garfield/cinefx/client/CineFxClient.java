@@ -32,6 +32,8 @@ public final class CineFxClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(CineFxEventBridge::tick);
         ClientTickEvents.END_CLIENT_TICK.register(CineFxPlayerControlState::tick);
         ClientTickEvents.END_CLIENT_TICK.register(CineFxAudioLayerMixer::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(CineFxNativeVisualFallback::tick);
+        HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "native_sky_fallback"), CineFxNativeVisualFallback::renderSkyHud);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "hud"), CineFxHudRenderer::render);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "debug"), CineFxDebugOverlay::render);
 
@@ -57,6 +59,7 @@ public final class CineFxClient implements ClientModInitializer {
             CineFxVanillaActorRenderer.clear();
             CineFxPlayerControlState.clear();
             CineFxAudioLayerMixer.clear();
+            CineFxNativeVisualFallback.clear();
             AdaptiveQualityController.reset();
         });
     }
