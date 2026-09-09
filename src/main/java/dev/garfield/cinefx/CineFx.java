@@ -3,6 +3,7 @@ package dev.garfield.cinefx;
 import dev.garfield.cinefx.api.EventDirector;
 import dev.garfield.cinefx.api.EventDirectorCommands;
 import dev.garfield.cinefx.network.CineFxNetworking;
+import dev.garfield.cinefx.showcase.MegaEventPresets;
 import dev.garfield.cinefx.showcase.ShowcaseCommands;
 import dev.garfield.cinefx.showcase.ShowcaseScenes;
 import dev.garfield.cinefx.showcase.ShowcaseValidator;
@@ -18,6 +19,7 @@ public final class CineFx implements ModInitializer {
         EventDirector.INSTANCE.initialize();
         EventDirectorCommands.initialize();
         ShowcaseScenes.registerAll();
+        MegaEventPresets.register();
         ShowcaseValidator.requireValid();
         ShowcaseCommands.initialize();
     }
