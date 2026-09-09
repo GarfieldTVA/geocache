@@ -15,16 +15,25 @@ import java.util.Map;
 /** Samples scene camera rigs analytically at camera-update time; no camera entity is created. */
 public final class CineFxCameraController {
     private static volatile double ultraFovDegrees = -1.0;
+    private static volatile boolean cinematicCameraActive;
+    private static volatile boolean hideHud;
+    private static volatile boolean hideHand;
 
     private CineFxCameraController() { }
 
     public record Sample(Vec3d position, float yaw, float pitch) { }
 
     public static double ultraFovDegrees() { return ultraFovDegrees; }
+    public static boolean cinematicCameraActive() { return cinematicCameraActive; }
+    public static boolean hideHud() { return hideHud; }
+    public static boolean hideHand() { return hideHand; }
 
     public static Sample sample(Camera vanillaCamera) {
         MinecraftClient client = MinecraftClient.getInstance();
         ultraFovDegrees = -1.0;
+        cinematicCameraActive = false;
+        hideHud = false;
+        hideHand = false;
         if (client.world == null) return null;
         double absoluteTick = CineFxRuntime.absoluteGameTick(client);
         Vec3d position = vanillaCamera.getCameraPos();
@@ -41,6 +50,9 @@ public final class CineFxCameraController {
 
                 if (raw instanceof UltraEventElement.CameraRig rig) {
                     if (!claims.claim("camera", rig.conflictPolicy())) continue;
+                    cinematicCameraActive = true;
+                    hideHud = !parseBoolean(rig.parameters(), "show_hud", false);
+                    hideHand = !parseBoolean(rig.parameters(), "show_hand", false);
                     double local = sceneTick - rig.startTick();
                     Vec3d target = scene.options().anchor().add(rig.lookAtOffset());
                     Vec3d pathLocal = rig.path() == null ? Vec3d.ZERO : rig.path().sample(local).position();
@@ -88,6 +100,9 @@ public final class CineFxCameraController {
 
                 if (!(raw instanceof EventElement.Camera camera)) continue;
                 if (!claims.claim("camera", camera.conflictPolicy())) continue;
+                cinematicCameraActive = true;
+                hideHud = true;
+                hideHand = true;
 
                 double local = sceneTick - camera.startTick();
                 Transform transform = camera.transform().sample(local)
@@ -181,5 +196,10 @@ public final class CineFxCameraController {
         if (raw == null) return fallback;
         try { return Double.parseDouble(raw); }
         catch (NumberFormatException ignored) { return fallback; }
+    }
+
+    private static boolean parseBoolean(Map<String, String> values, String key, boolean fallback) {
+        String raw = values.get(key);
+        return raw == null ? fallback : Boolean.parseBoolean(raw);
     }
 }
