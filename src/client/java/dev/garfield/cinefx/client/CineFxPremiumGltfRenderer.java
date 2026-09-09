@@ -27,7 +27,6 @@ import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
-import org.joml.Vector3f;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -39,7 +38,6 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -846,7 +844,7 @@ final class CineFxPremiumGltfRenderer {
         if (whiteTexture != null) return whiteTexture;
         Identifier id = Identifier.of("cinefx", "gltf_dynamic/white");
         NativeImage image = new NativeImage(1, 1, false);
-        image.setPixel(0, 0, 0xFFFFFFFF);
+        image.setColorArgb(0, 0, 0xFFFFFFFF);
         NativeImageBackedTexture texture = new NativeImageBackedTexture(() -> id.toString(), image);
         MinecraftClient.getInstance().getTextureManager().registerTexture(id, texture);
         texture.upload();
