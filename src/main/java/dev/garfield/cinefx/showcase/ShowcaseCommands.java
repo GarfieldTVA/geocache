@@ -19,6 +19,7 @@ public final class ShowcaseCommands {
     public static synchronized void initialize() {
         if (initialized) return;
         initialized = true;
+        PremiumShowcase.register();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             var root = CommandManager.literal("cinefxshowcase");
             for (Map.Entry<String, Identifier> entry : ShowcaseScenes.catalog().entrySet()) {
@@ -32,6 +33,14 @@ public final class ShowcaseCommands {
                     return 1;
                 }));
             }
+            root.then(CommandManager.literal("premium").executes(context -> {
+                var source = context.getSource();
+                long now = source.getWorld().getTime();
+                EventDirector.INSTANCE.start(source.getServer(), source.getWorld(), PremiumShowcase.program(),
+                        source.getPosition(), 256.0, now ^ 0xC1FE_900DL, Map.of("showcase", "premium"));
+                source.sendFeedback(() -> Text.literal("CineFX premium renderer showcase started."), false);
+                return 1;
+            }));
             root.then(CommandManager.literal("marathon").executes(context -> {
                 var source = context.getSource();
                 long now = source.getWorld().getTime();
