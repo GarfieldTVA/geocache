@@ -31,17 +31,34 @@ public final class CineFxClient implements ClientModInitializer {
                 -1000,
                 new CineFxBuiltInCinematicBackend());
 
+        UltraBackendRegistry.INSTANCE.register(
+                Identifier.of(CineFx.MOD_ID, "native_ultra"),
+                -1000,
+                new CineFxUltraNativeBackend());
+
         WorldRenderEvents.END_MAIN.register(CineFxWorldRenderer::render);
+        // Ultra is sampled before graph rendering so procedural rigs, material effects and light rigs
+        // are available to the built-in premium glTF renderer in the same render frame.
+        WorldRenderEvents.END_MAIN.register(CineFxUltraBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxSceneGraphBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxAdvancedEventBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxLightingBridge::render);
         WorldRenderEvents.END_MAIN.register(CineFxEventBridge::render);
+
         ClientTickEvents.END_CLIENT_TICK.register(CineFxEventBridge::tick);
         ClientTickEvents.END_CLIENT_TICK.register(CineFxPlayerControlState::tick);
         ClientTickEvents.END_CLIENT_TICK.register(CineFxAudioLayerMixer::tick);
         ClientTickEvents.END_CLIENT_TICK.register(CineFxNativeVisualFallback::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            CineFxUltraState.tick();
+            CineFxUltraPhysics.tick();
+            CineFxUltraSpatialAudio.tick(client);
+        });
+
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "native_sky_fallback"), CineFxNativeVisualFallback::renderSkyHud);
+        HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "ultra_post"), CineFxUltraPostOverlay::render);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "hud"), CineFxHudRenderer::render);
+        HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "ultra_editor"), CineFxUltraEditorOverlay::render);
         HudElementRegistry.addLast(Identifier.of(CineFx.MOD_ID, "debug"), CineFxDebugOverlay::render);
 
         ClientPlayNetworking.registerGlobalReceiver(PlayScenePayload.ID, (payload, context) ->
@@ -69,6 +86,11 @@ public final class CineFxClient implements ClientModInitializer {
             CineFxPlayerControlState.clear();
             CineFxAudioLayerMixer.clear();
             CineFxNativeVisualFallback.clear();
+            CineFxUltraState.clear();
+            CineFxUltraPhysics.clear();
+            CineFxUltraSpatialAudio.clear();
+            CineFxUltraPostOverlay.clear();
+            CineFxUltraEditorOverlay.clear();
             AdaptiveQualityController.reset();
         });
     }
