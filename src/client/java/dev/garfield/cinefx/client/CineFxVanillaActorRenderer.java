@@ -64,13 +64,18 @@ final class CineFxVanillaActorRenderer {
                 cached = new CachedActor(signature, entity, context.absoluteGameTick());
                 CACHE.put(cacheKey, cached);
             }
-            cached.lastSeenTick = context.absoluteGameTick();
+
+            double nowTick = context.absoluteGameTick();
+            Vec3d worldPos = frame.worldPosition();
+            double dt = Math.max(0.05, nowTick - cached.lastSeenTick);
+            Vec3d movement = cached.lastWorldPos == null ? Vec3d.ZERO : worldPos.subtract(cached.lastWorldPos);
 
             Entity entity = cached.entity;
-            Vec3d worldPos = frame.worldPosition();
             entity.setPosition(worldPos.x, worldPos.y, worldPos.z);
             entity.setYaw(0.0F);
             entity.setPitch(0.0F);
+            if (movement.lengthSquared() > 1.0e-10) entity.setVelocity(movement.multiply(1.0 / dt));
+            else entity.setVelocity(Vec3d.ZERO);
 
             EntityRenderState state;
             try {
@@ -94,6 +99,7 @@ final class CineFxVanillaActorRenderer {
             if (state instanceof PlayerEntityRenderState playerState) applyPlayerAppearance(playerState, frame);
             if (state instanceof LivingEntityRenderState living) {
                 applyVanillaAnimation(living, frame.animations());
+                applyLocomotion(living, frame, movement, dt);
                 applyLookAt(living, frame);
                 applySimpleBoneOverrides(living, frame.boneOverrides());
             }
@@ -114,6 +120,9 @@ final class CineFxVanillaActorRenderer {
             } finally {
                 context.matrices().pop();
             }
+
+            cached.lastWorldPos = worldPos;
+            cached.lastSeenTick = nowTick;
         }
 
         double now = context.absoluteGameTick();
@@ -175,9 +184,23 @@ final class CineFxVanillaActorRenderer {
                     state.limbSwingAnimationProgress = time * 0.65F;
                     state.limbSwingAmplitude = Math.max(state.limbSwingAmplitude, weight * 0.75F);
                 }
-                case "run" -> {
+                case "run", "panic" -> {
                     state.limbSwingAnimationProgress = time * 1.15F;
                     state.limbSwingAmplitude = Math.max(state.limbSwingAmplitude, weight);
+                    if (path.equals("panic")) {
+                        state.relativeHeadYaw += Math.sin(time * 0.24F) * 22.0F * weight;
+                        state.pitch += Math.cos(time * 0.18F) * 8.0F * weight;
+                    }
+                }
+                case "idle" -> {
+                    state.relativeHeadYaw += Math.sin(time * 0.045F) * 8.0F * weight;
+                    state.pitch += Math.sin(time * 0.031F + 1.4F) * 2.5F * weight;
+                }
+                case "dance" -> {
+                    state.bodyYaw += Math.sin(time * 0.18F) * 24.0F * weight;
+                    state.relativeHeadYaw += Math.sin(time * 0.31F + 0.7F) * 18.0F * weight;
+                    state.limbSwingAnimationProgress = time * 1.6F;
+                    state.limbSwingAmplitude = Math.max(state.limbSwingAmplitude, weight * 0.9F);
                 }
                 case "crouch", "sneak" -> {
                     if (weight >= 0.5F) state.pose = EntityPose.CROUCHING;
@@ -191,6 +214,30 @@ final class CineFxVanillaActorRenderer {
                 default -> { }
             }
         }
+    }
+
+    /**
+     * Vanilla render-only actors do not tick inside ClientWorld, so vanilla cannot infer walking from
+     * entity tracker updates. CineFX derives locomotion from the actor's resolved scene-graph movement.
+     */
+    private static void applyLocomotion(LivingEntityRenderState state, ActorFrame frame, Vec3d movement, double dt) {
+        double horizontalDistance = Math.sqrt(movement.x * movement.x + movement.z * movement.z);
+        double speed = horizontalDistance / Math.max(0.05, dt);
+        if (speed <= 0.0015) return;
+
+        float amplitude = (float)MathHelper.clamp(speed * 5.5, 0.16, 1.0);
+        float cadence = (float)(0.55 + Math.min(1.35, speed * 7.0));
+        state.limbSwingAnimationProgress = Math.max(state.limbSwingAnimationProgress, (float)frame.localTick() * cadence);
+        state.limbSwingAmplitude = Math.max(state.limbSwingAmplitude, amplitude);
+
+        float travelYaw = (float)Math.toDegrees(Math.atan2(-movement.x, movement.z));
+        Vec3d origin = frame.worldPosition();
+        Vec3d forwardPoint = point(frame.worldMatrix(), new Vec3d(0.0, 0.0, 1.0));
+        Vec3d forward = forwardPoint.subtract(origin);
+        float rootYaw = forward.horizontalLengthSquared() < 1.0e-8
+                ? 0.0F
+                : (float)Math.toDegrees(Math.atan2(-forward.x, forward.z));
+        state.bodyYaw = MathHelper.wrapDegrees(travelYaw - rootYaw);
     }
 
     private static void applyLookAt(LivingEntityRenderState state, ActorFrame frame) {
@@ -252,6 +299,7 @@ final class CineFxVanillaActorRenderer {
         final String signature;
         final Entity entity;
         double lastSeenTick;
+        Vec3d lastWorldPos;
 
         CachedActor(String signature, Entity entity, double lastSeenTick) {
             this.signature = signature;
