@@ -27,6 +27,6 @@ public abstract class CineFxFovMixin {
 
     @Inject(method = "renderHand", at = @At("HEAD"), cancellable = true, require = 0)
     private void cinefx$hideHand(CallbackInfo ci) {
-        if (CineFxPlayerControlState.hideHand()) ci.cancel();
+        if (CineFxPlayerControlState.hideHand() || CineFxCameraController.hideHand()) ci.cancel();
     }
 }
