@@ -35,6 +35,7 @@ public final class CineFxClient implements ClientModInitializer {
                 Identifier.of(CineFx.MOD_ID, "native_ultra"),
                 -1000,
                 new CineFxUltraNativeBackend());
+        CineFxUltraClientCommands.register();
 
         WorldRenderEvents.END_MAIN.register(CineFxWorldRenderer::render);
         // Ultra is sampled before graph rendering so procedural rigs, material effects and light rigs
