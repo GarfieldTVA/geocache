@@ -13,7 +13,8 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
         ArrayList<ActorFrame> vanilla = new ArrayList<>();
         ArrayList<ActorFrame> custom = new ArrayList<>();
         for (ActorFrame raw : actors) {
-            ActorFrame actor = CineFxUltraGltfEnhancer.actor(raw);
+            ActorFrame terrainFitted = CineFxTerrainAdaptation.actor(raw);
+            ActorFrame actor = CineFxUltraGltfEnhancer.actor(terrainFitted);
             if (actor.kind() == ComplexElement.ActorKind.CUSTOM_MODEL) custom.add(actor);
             else vanilla.add(actor);
         }
@@ -50,7 +51,9 @@ final class CineFxBuiltInCinematicBackend implements CinematicBackend {
 
     @Override
     public boolean renderInstanceBatches(SceneRenderContext context, List<InstanceBatchFrame> batches) {
-        return CineFxNativeVisualFallback.renderInstances(context, batches);
+        ArrayList<InstanceBatchFrame> fitted = new ArrayList<>(batches.size());
+        for (InstanceBatchFrame batch : batches) fitted.add(CineFxTerrainAdaptation.batch(batch));
+        return CineFxNativeVisualFallback.renderInstances(context, List.copyOf(fitted));
     }
 
     @Override
