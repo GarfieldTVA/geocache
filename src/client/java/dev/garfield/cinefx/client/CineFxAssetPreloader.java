@@ -8,6 +8,7 @@ import net.minecraft.util.Identifier;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 /** Synchronous warmup coordinator. Resource ids are verified by vanilla; logical ids are offered to integrations. */
 public final class CineFxAssetPreloader {
@@ -36,22 +37,38 @@ public final class CineFxAssetPreloader {
 
         int logicalFailed = 0;
         for (Identifier asset : bundle.logicalAssets()) {
-            boolean handled = false;
-            synchronized (CineFxAssetPreloader.class) {
-                for (Entry entry : BACKENDS) {
-                    try {
-                        if (entry.backend.preload(asset)) {
-                            handled = true;
-                            break;
+            boolean handled = preloadBuiltIn(asset);
+            if (!handled) {
+                synchronized (CineFxAssetPreloader.class) {
+                    for (Entry entry : BACKENDS) {
+                        try {
+                            if (entry.backend.preload(asset)) {
+                                handled = true;
+                                break;
+                            }
+                        } catch (RuntimeException exception) {
+                            System.err.println("[CineFX] Asset preloader failed: " + entry.id + " - " + exception.getMessage());
                         }
-                    } catch (RuntimeException exception) {
-                        System.err.println("[CineFX] Asset preloader failed: " + entry.id + " - " + exception.getMessage());
                     }
                 }
             }
             if (!handled && !BACKENDS.isEmpty()) logicalFailed++;
         }
         return new Result(missing == 0 && logicalFailed == 0, missing, logicalFailed);
+    }
+
+    private static boolean preloadBuiltIn(Identifier asset) {
+        if (asset == null) return false;
+        String path = asset.getPath().toLowerCase(Locale.ROOT);
+        boolean model = path.startsWith("model/") || path.startsWith("models/")
+                || path.startsWith("cinefx/models/") || path.endsWith(".gltf") || path.endsWith(".glb");
+        if (!model) return false;
+        try {
+            return CineFxGltfRenderer.preload(asset);
+        } catch (RuntimeException exception) {
+            System.err.println("[CineFX] Built-in glTF preload failed for " + asset + ": " + exception.getMessage());
+            return true; // proxy fallback is already ready, so the event does not deadlock on an optional model.
+        }
     }
 
     public record Result(boolean ready, int missingResources, int logicalAssetsFailed) { }

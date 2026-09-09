@@ -57,6 +57,7 @@ public final class CineFxClient implements ClientModInitializer {
             CineFxRuntime.INSTANCE.clear();
             CineFxSceneGraphBridge.clear();
             CineFxVanillaActorRenderer.clear();
+            CineFxGltfRenderer.clear();
             CineFxPlayerControlState.clear();
             CineFxAudioLayerMixer.clear();
             CineFxNativeVisualFallback.clear();
