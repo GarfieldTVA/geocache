@@ -91,7 +91,7 @@ public final class UltraShowcase {
                         Map.entry(UltraEventElement.PostEffect.GLITCH,
                                 ScalarTrack.of(Keyframe.at(0, 0), Keyframe.at(650, 0), Keyframe.at(730, 0.38), Keyframe.at(800, 0.02))),
                         Map.entry(UltraEventElement.PostEffect.TRANSITION,
-                                ScalarTrack.of(Keyframe.at(0, 0.7, Easing.EASE_OUT_CUBIC), Keyframe.at(35, 0), Keyframe.at(950, 0), Keyframe.at(d, 1))))),
+                                ScalarTrack.of(Keyframe.at(0, 0.7, Easing.EASE_OUT_CUBIC), Keyframe.at(35, 0), Keyframe.at(950, 0), Keyframe.at(d, 1)))),
                 ColorTrack.constant(0x081D6A80), ScalarTrack.constant(14), ScalarTrack.constant(6),
                 Map.of("profile", "ultra_showcase")));
 
