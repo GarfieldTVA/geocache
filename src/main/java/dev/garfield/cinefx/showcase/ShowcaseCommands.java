@@ -135,10 +135,10 @@ public final class ShowcaseCommands {
 
         if (best == null) {
             Vec3d fallback = safeAnchor(source);
-            return new AnchorResult(fallback, 99.0, fallback.horizontalDistanceTo(raw));
+            return new AnchorResult(fallback, 99.0, horizontalDistance(fallback, raw));
         }
         Vec3d position = new Vec3d(best.x + 0.5, best.y + 1.02, best.z + 0.5);
-        return new AnchorResult(position, best.roughness, position.horizontalDistanceTo(raw));
+        return new AnchorResult(position, best.roughness, horizontalDistance(position, raw));
     }
 
     private static Candidate evaluatePatch(ServerWorld world, int x, int z, int aroundY, Vec3d raw, int dx, int dz) {
@@ -204,6 +204,12 @@ public final class ShowcaseCommands {
             return new Vec3d(raw.x, y + 1.02, raw.z);
         }
         return raw.add(0.0, 0.08, 0.0);
+    }
+
+    private static double horizontalDistance(Vec3d a, Vec3d b) {
+        double dx = a.x - b.x;
+        double dz = a.z - b.z;
+        return Math.sqrt(dx * dx + dz * dz);
     }
 
     private record Candidate(int x, int y, int z, double roughness, double score) { }
