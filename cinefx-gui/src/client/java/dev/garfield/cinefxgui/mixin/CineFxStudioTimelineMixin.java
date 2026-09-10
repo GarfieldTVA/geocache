@@ -9,6 +9,7 @@ import dev.garfield.cinefxgui.editor.EditorModel;
 import dev.garfield.cinefxgui.editor.PreviewController;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.input.KeyInput;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,14 +17,17 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Keeps the dense Flashback-like timeline gestures isolated from the scene-authoring screen itself.
+ * Dense Flashback-like timeline gestures kept separate from the scene-authoring screen itself.
  * It only touches CineFX GUI editor state; CineFX remains a separate runtime dependency.
  */
 @Mixin(value = CineFxStudioScreen.class, remap = false)
@@ -32,22 +36,91 @@ public abstract class CineFxStudioTimelineMixin {
     @Shadow private EditorModel.Project project;
     @Shadow private double timelineStartTick;
     @Shadow private double pixelsPerTick;
+    @Shadow private EditorModel.History history;
+
+    @Unique private EditorModel.Project cinefxGui$selectionProject;
+    @Unique private IdentityHashMap<JsonObject, JsonArray> cinefxGui$selectedKeys;
+    @Unique private IdentityHashMap<JsonObject, Double> cinefxGui$dragStartTicks;
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
-    private void cinefxGui$stepPlayhead(KeyInput input, CallbackInfoReturnable<Boolean> cir) {
-        if (input.key() != GLFW.GLFW_KEY_LEFT && input.key() != GLFW.GLFW_KEY_RIGHT) return;
-        double amount = (input.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0 ? 10.0 : 1.0;
-        if (input.key() == GLFW.GLFW_KEY_LEFT) amount = -amount;
-        preview.setTick(MinecraftClient.getInstance(), preview.currentTick() + amount);
-        cir.setReturnValue(true);
+    private void cinefxGui$timelineKeys(KeyInput input, CallbackInfoReturnable<Boolean> cir) {
+        cinefxGui$ensureSelectionProject();
+        boolean ctrl = (input.modifiers() & GLFW.GLFW_MOD_CONTROL) != 0;
+        boolean shift = (input.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
+
+        if (ctrl && input.key() == GLFW.GLFW_KEY_A) {
+            Object selectedId = cinefxGui$readField(this, "selectedId");
+            EditorModel.Element selected = selectedId instanceof String id ? project.find(id) : null;
+            if (selected != null) {
+                cinefxGui$selected().clear();
+                cinefxGui$collectTimed(selected.data, null, cinefxGui$selected());
+                cir.setReturnValue(true);
+                return;
+            }
+        }
+
+        if (input.key() == GLFW.GLFW_KEY_ESCAPE && !cinefxGui$selected().isEmpty()) {
+            cinefxGui$selected().clear();
+            cir.setReturnValue(true);
+            return;
+        }
+
+        if (input.key() == GLFW.GLFW_KEY_DELETE && !cinefxGui$selected().isEmpty()) {
+            history.checkpoint(project);
+            boolean changed = false;
+            for (Map.Entry<JsonObject, JsonArray> entry : List.copyOf(cinefxGui$selected().entrySet())) {
+                JsonArray parent = entry.getValue();
+                if (parent == null || parent.size() <= 1) continue;
+                for (int i = 0; i < parent.size(); i++) {
+                    if (parent.get(i) == entry.getKey()) {
+                        parent.remove(i);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            if (changed) {
+                project.dirty = true;
+                preview.markDirty();
+            }
+            cinefxGui$selected().clear();
+            cir.setReturnValue(true);
+            return;
+        }
+
+        if (input.key() == GLFW.GLFW_KEY_LEFT || input.key() == GLFW.GLFW_KEY_RIGHT) {
+            double amount = shift ? 10.0 : 1.0;
+            if (input.key() == GLFW.GLFW_KEY_LEFT) amount = -amount;
+            preview.setTick(MinecraftClient.getInstance(), preview.currentTick() + amount);
+            cir.setReturnValue(true);
+        }
     }
 
     @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
-    private void cinefxGui$snapPlayhead(Click click, double dx, double dy, CallbackInfoReturnable<Boolean> cir) {
-        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !cinefxGui$isShiftDown()) return;
-        Object dragMode = cinefxGui$readField(this, "dragMode");
-        if (dragMode == null || !"PLAYHEAD".equals(dragMode.toString())) return;
+    private void cinefxGui$timelineDrag(Click click, double dx, double dy, CallbackInfoReturnable<Boolean> cir) {
+        cinefxGui$ensureSelectionProject();
+        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return;
 
+        Object dragMode = cinefxGui$readField(this, "dragMode");
+        if (dragMode != null && "KEYFRAME".equals(dragMode.toString()) && cinefxGui$selected().size() > 1
+                && cinefxGui$dragStartTicks != null && !cinefxGui$dragStartTicks.isEmpty()) {
+            Object startRaw = cinefxGui$readField(this, "dragMouseStartTick");
+            if (startRaw instanceof Number startNumber) {
+                double tick = timelineStartTick + (click.x() - 205.0) / Math.max(0.0001, pixelsPerTick);
+                double delta = Math.round((tick - startNumber.doubleValue()) * 4.0) / 4.0;
+                for (Map.Entry<JsonObject, Double> entry : cinefxGui$dragStartTicks.entrySet()) {
+                    if (!cinefxGui$selected().containsKey(entry.getKey())) continue;
+                    entry.getKey().addProperty("tick", Math.max(0.0, entry.getValue() + delta));
+                }
+                project.dirty = true;
+                preview.markDirty();
+                cir.setReturnValue(true);
+                return;
+            }
+        }
+
+        if (!cinefxGui$isShiftDown()) return;
+        if (dragMode == null || !"PLAYHEAD".equals(dragMode.toString())) return;
         double tick = timelineStartTick + (click.x() - 205.0) / Math.max(0.0001, pixelsPerTick);
         tick = Math.max(0.0, Math.min(project.durationTicks, tick));
         double nearest = cinefxGui$nearestKeyframe(tick);
@@ -56,8 +129,8 @@ public abstract class CineFxStudioTimelineMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void cinefxGui$keyframeContextAction(Click click, boolean doubled, CallbackInfoReturnable<Boolean> cir) {
-        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_RIGHT) return;
+    private void cinefxGui$keyframeActions(Click click, boolean doubled, CallbackInfoReturnable<Boolean> cir) {
+        cinefxGui$ensureSelectionProject();
         Object rawHits = cinefxGui$readField(this, "keyHits");
         if (!(rawHits instanceof List<?> hits)) return;
 
@@ -66,19 +139,36 @@ public abstract class CineFxStudioTimelineMixin {
             Object keyRaw = cinefxGui$readField(hit, "key");
             Object parentRaw = cinefxGui$readField(hit, "parent");
             if (!(keyRaw instanceof JsonObject key)) return;
+            JsonArray parent = parentRaw instanceof JsonArray array ? array : null;
 
-            cinefxGui$checkpoint();
-            if (cinefxGui$isShiftDown()) {
-                if (parentRaw instanceof JsonArray parent && parent.size() > 1) {
-                    for (int i = 0; i < parent.size(); i++) {
-                        if (parent.get(i) == key) {
-                            parent.remove(i);
-                            break;
-                        }
-                    }
-                } else {
+            if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+                if (cinefxGui$isCtrlDown()) {
+                    if (cinefxGui$selected().containsKey(key)) cinefxGui$selected().remove(key);
+                    else cinefxGui$selected().put(key, parent);
+                    cir.setReturnValue(true);
                     return;
                 }
+                if (!cinefxGui$selected().containsKey(key)) {
+                    cinefxGui$selected().clear();
+                    cinefxGui$selected().put(key, parent);
+                }
+                cinefxGui$dragStartTicks = new IdentityHashMap<>();
+                for (JsonObject selected : cinefxGui$selected().keySet()) {
+                    try { cinefxGui$dragStartTicks.put(selected, selected.get("tick").getAsDouble()); }
+                    catch (RuntimeException ignored) { }
+                }
+                return; // let the normal screen start the drag/checkpoint
+            }
+
+            if (click.button() != GLFW.GLFW_MOUSE_BUTTON_RIGHT) return;
+            history.checkpoint(project);
+            if (cinefxGui$isShiftDown()) {
+                if (parent != null && parent.size() > 1) {
+                    for (int i = 0; i < parent.size(); i++) {
+                        if (parent.get(i) == key) { parent.remove(i); break; }
+                    }
+                    cinefxGui$selected().remove(key);
+                } else return;
             } else {
                 Easing[] curves = Easing.values();
                 String current = key.has("easing") && key.get("easing").isJsonPrimitive()
@@ -93,12 +183,59 @@ public abstract class CineFxStudioTimelineMixin {
             cir.setReturnValue(true);
             return;
         }
+
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && click.y() >= cinefxGui$timelineTop()) {
+            cinefxGui$selected().clear();
+        }
+    }
+
+    @Inject(method = "drawTimeline", at = @At("TAIL"))
+    private void cinefxGui$drawKeySelection(DrawContext context, int mouseX, int mouseY, CallbackInfo ci) {
+        cinefxGui$ensureSelectionProject();
+        if (cinefxGui$selected().isEmpty()) return;
+        Object rawHits = cinefxGui$readField(this, "keyHits");
+        if (!(rawHits instanceof List<?> hits)) return;
+        for (Object hit : hits) {
+            Object keyRaw = cinefxGui$readField(hit, "key");
+            if (!(keyRaw instanceof JsonObject key) || !cinefxGui$selected().containsKey(key)) continue;
+            try {
+                int x1 = ((Number)cinefxGui$readField(hit, "x1")).intValue();
+                int y1 = ((Number)cinefxGui$readField(hit, "y1")).intValue();
+                int x2 = ((Number)cinefxGui$readField(hit, "x2")).intValue();
+                int y2 = ((Number)cinefxGui$readField(hit, "y2")).intValue();
+                int color = 0xFFFFE08A;
+                context.fill(x1, y1, x2, y1 + 1, color);
+                context.fill(x1, y2 - 1, x2, y2, color);
+                context.fill(x1, y1, x1 + 1, y2, color);
+                context.fill(x2 - 1, y1, x2, y2, color);
+            } catch (RuntimeException ignored) { }
+        }
+    }
+
+    @Inject(method = "mouseReleased", at = @At("TAIL"))
+    private void cinefxGui$endMultiDrag(Click click, CallbackInfoReturnable<Boolean> cir) {
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) cinefxGui$dragStartTicks = null;
     }
 
     @Unique
-    private void cinefxGui$checkpoint() {
-        Object history = cinefxGui$readField(this, "history");
-        if (history instanceof EditorModel.History editorHistory) editorHistory.checkpoint(project);
+    private IdentityHashMap<JsonObject, JsonArray> cinefxGui$selected() {
+        if (cinefxGui$selectedKeys == null) cinefxGui$selectedKeys = new IdentityHashMap<>();
+        return cinefxGui$selectedKeys;
+    }
+
+    @Unique
+    private void cinefxGui$ensureSelectionProject() {
+        if (cinefxGui$selectionProject == project) return;
+        cinefxGui$selectionProject = project;
+        cinefxGui$selected().clear();
+        cinefxGui$dragStartTicks = null;
+    }
+
+    @Unique
+    private int cinefxGui$timelineTop() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        int height = client == null ? 0 : client.getWindow().getScaledHeight();
+        return Math.max(32 + 170, height - 244);
     }
 
     @Unique
@@ -117,6 +254,22 @@ public abstract class CineFxStudioTimelineMixin {
             best = holder[0]; bestDistance = holder[1];
         }
         return best;
+    }
+
+    @Unique
+    private static void cinefxGui$collectTimed(JsonElement value, JsonArray parent, IdentityHashMap<JsonObject, JsonArray> out) {
+        if (value == null || value.isJsonNull()) return;
+        if (value.isJsonObject()) {
+            JsonObject object = value.getAsJsonObject();
+            if (parent != null && object.has("tick") && object.get("tick").isJsonPrimitive()) out.put(object, parent);
+            for (Map.Entry<String, JsonElement> entry : object.entrySet()) cinefxGui$collectTimed(entry.getValue(), null, out);
+        } else if (value.isJsonArray()) {
+            JsonArray array = value.getAsJsonArray();
+            for (JsonElement child : array) {
+                if (child.isJsonObject() && child.getAsJsonObject().has("tick")) out.put(child.getAsJsonObject(), array);
+                else cinefxGui$collectTimed(child, array, out);
+            }
+        }
     }
 
     @Unique
