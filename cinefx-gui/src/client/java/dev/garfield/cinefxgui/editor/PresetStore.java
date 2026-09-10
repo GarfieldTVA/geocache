@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -17,7 +18,9 @@ import java.util.UUID;
 public final class PresetStore {
     private static final Path ROOT = FabricLoader.getInstance().getConfigDir().resolve("cinefx-gui");
     private static final Path PRESETS = ROOT.resolve("presets");
+    private static final Path BACKUPS = ROOT.resolve("backups");
     private static final Path AUTOSAVE = ROOT.resolve("autosave.json");
+    private static final int MAX_BACKUPS_PER_PRESET = 12;
 
     private PresetStore() { }
 
@@ -42,6 +45,7 @@ public final class PresetStore {
         String fileName = sanitize(requestedName == null || requestedName.isBlank() ? project.name : requestedName);
         if (fileName.isBlank()) fileName = "untitled";
         Path target = PRESETS.resolve(fileName + ".json");
+        backupBeforeOverwrite(target, fileName);
         atomicWrite(target, EditorModel.GSON.toJson(project));
         project.sourcePreset = fileName;
         project.dirty = false;
@@ -124,8 +128,6 @@ public final class PresetStore {
     }
 
     private static void migrate(EditorModel.Project project) {
-        // v1 -> v2: editor identity became strict, autosaves became atomic and every element
-        // keeps its API class marker in JSON so recovery is possible after partial/manual edits.
         if (project.formatVersion < 2) {
             if (project.elements != null) {
                 for (EditorModel.Element element : project.elements) {
@@ -138,6 +140,26 @@ public final class PresetStore {
             }
             project.formatVersion = 2;
         }
+    }
+
+    private static void backupBeforeOverwrite(Path target, String fileName) {
+        if (!Files.isRegularFile(target)) return;
+        try {
+            Files.createDirectories(BACKUPS);
+            String stamp = Long.toString(Instant.now().toEpochMilli());
+            Files.copy(target, BACKUPS.resolve(fileName + "-" + stamp + ".json"), StandardCopyOption.REPLACE_EXISTING);
+            pruneBackups(fileName);
+        } catch (IOException ignored) { }
+    }
+
+    private static void pruneBackups(String fileName) {
+        try (var stream = Files.list(BACKUPS)) {
+            List<Path> files = stream
+                    .filter(path -> path.getFileName().toString().startsWith(fileName + "-") && path.getFileName().toString().endsWith(".json"))
+                    .sorted((a, b) -> b.getFileName().toString().compareTo(a.getFileName().toString()))
+                    .toList();
+            for (int i = MAX_BACKUPS_PER_PRESET; i < files.size(); i++) Files.deleteIfExists(files.get(i));
+        } catch (IOException ignored) { }
     }
 
     private static void atomicWrite(Path target, String content) throws IOException {
@@ -153,7 +175,7 @@ public final class PresetStore {
     }
 
     private static void ensureDirectories() {
-        try { Files.createDirectories(PRESETS); }
+        try { Files.createDirectories(PRESETS); Files.createDirectories(BACKUPS); }
         catch (IOException ignored) { }
     }
 
