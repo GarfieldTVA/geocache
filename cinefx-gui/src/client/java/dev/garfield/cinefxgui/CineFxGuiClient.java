@@ -1,6 +1,6 @@
 package dev.garfield.cinefxgui;
 
-import dev.garfield.cinefxgui.editor.CineFxEditorScreen;
+import dev.garfield.cinefxgui.editor.CineFxStudioScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -22,8 +22,8 @@ public final class CineFxGuiClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openEditor.wasPressed()) {
-                if (client.currentScreen instanceof CineFxEditorScreen) client.setScreen(null);
-                else if (client.world != null) client.setScreen(new CineFxEditorScreen());
+                if (client.currentScreen instanceof CineFxStudioScreen) client.setScreen(null);
+                else if (client.world != null) client.setScreen(new CineFxStudioScreen());
             }
         });
     }
