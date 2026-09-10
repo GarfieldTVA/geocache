@@ -15,7 +15,7 @@ import java.util.Set;
 /** Structural checks that are useful before CineFX record constructors run. */
 public final class ProjectDiagnostics {
     private static final Set<String> ELEMENT_REFERENCE_FIELDS = Set.of(
-            "parentKey", "actorKey", "targetElementKey", "lookAtElementKey", "targetElementKey");
+            "parentKey", "actorKey", "targetElementKey", "lookAtElementKey", "sourceElementKey");
 
     private ProjectDiagnostics() { }
 
