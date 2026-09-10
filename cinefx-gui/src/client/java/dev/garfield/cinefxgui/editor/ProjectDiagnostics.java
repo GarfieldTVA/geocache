@@ -14,6 +14,9 @@ import java.util.Set;
 
 /** Structural checks that are useful before CineFX record constructors run. */
 public final class ProjectDiagnostics {
+    private static final Set<String> ELEMENT_REFERENCE_FIELDS = Set.of(
+            "parentKey", "actorKey", "targetElementKey", "lookAtElementKey", "targetElementKey");
+
     private ProjectDiagnostics() { }
 
     public static List<CineFxBridge.BuildError> validate(EditorModel.Project project) {
@@ -58,17 +61,13 @@ public final class ProjectDiagnostics {
                 if (end < start) errors.add(error(element, "endTick must be >= startTick"));
             }
             if (element.apiClass == null || element.apiClass.isBlank()) errors.add(error(element, "Missing CineFX API class"));
-
-            String parent = string(element.data, "parentKey");
-            if (parent != null && !parent.isBlank() && !validKeys.contains(parent)) {
-                errors.add(error(element, "Unknown parentKey: " + parent));
-            }
-            inspectJson(element, element.data, "$", errors);
+            inspectJson(element, element.data, "$", validKeys, errors);
         }
+        detectParentCycles(byKey, errors);
         return List.copyOf(errors);
     }
 
-    private static void inspectJson(EditorModel.Element element, JsonElement value, String path,
+    private static void inspectJson(EditorModel.Element element, JsonElement value, String path, Set<String> validKeys,
                                     List<CineFxBridge.BuildError> errors) {
         if (value == null || value.isJsonNull()) return;
         if (value.isJsonObject()) {
@@ -76,14 +75,48 @@ public final class ProjectDiagnostics {
             for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
                 String childPath = path + "." + entry.getKey();
                 JsonElement child = entry.getValue();
+                if (ELEMENT_REFERENCE_FIELDS.contains(entry.getKey()) && child != null && child.isJsonPrimitive()) {
+                    String ref;
+                    try { ref = child.getAsString().trim(); }
+                    catch (RuntimeException ignored) { ref = ""; }
+                    if (!ref.isBlank() && !validKeys.contains(ref)) {
+                        errors.add(error(element, "Unknown " + entry.getKey() + ": " + ref + " at " + childPath));
+                    }
+                }
                 if ((entry.getKey().equals("keys") || entry.getKey().equals("points")) && child.isJsonArray()) {
                     inspectTimedArray(element, child.getAsJsonArray(), childPath, entry.getKey().equals("points"), errors);
                 }
-                inspectJson(element, child, childPath, errors);
+                inspectJson(element, child, childPath, validKeys, errors);
             }
         } else if (value.isJsonArray()) {
             int i = 0;
-            for (JsonElement child : value.getAsJsonArray()) inspectJson(element, child, path + "[" + i++ + "]", errors);
+            for (JsonElement child : value.getAsJsonArray()) inspectJson(element, child, path + "[" + i++ + "]", validKeys, errors);
+        }
+    }
+
+    private static void detectParentCycles(Map<String, EditorModel.Element> byKey, List<CineFxBridge.BuildError> errors) {
+        HashSet<String> reported = new HashSet<>();
+        for (Map.Entry<String, EditorModel.Element> entry : byKey.entrySet()) {
+            String start = entry.getKey();
+            HashMap<String, Integer> seenAt = new HashMap<>();
+            ArrayList<String> chain = new ArrayList<>();
+            String current = start;
+            while (current != null && byKey.containsKey(current)) {
+                Integer first = seenAt.putIfAbsent(current, chain.size());
+                if (first != null) {
+                    List<String> cycle = chain.subList(first, chain.size());
+                    String signature = String.join("->", cycle.stream().sorted().toList());
+                    if (reported.add(signature)) {
+                        String description = String.join(" -> ", cycle) + " -> " + current;
+                        for (String key : cycle) errors.add(error(byKey.get(key), "Parent cycle: " + description));
+                    }
+                    break;
+                }
+                chain.add(current);
+                current = string(byKey.get(current).data, "parentKey");
+                if (current != null) current = current.trim();
+                if (current != null && current.isBlank()) current = null;
+            }
         }
     }
 
