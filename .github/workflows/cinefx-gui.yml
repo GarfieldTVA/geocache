@@ -11,6 +11,10 @@ on:
       - "build.gradle"
       - "gradle.properties"
 
+concurrency:
+  group: cinefx-gui-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
