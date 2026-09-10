@@ -63,6 +63,33 @@ public final class PresetStore {
         return project;
     }
 
+    public static List<String> backups(String presetName) {
+        ensureDirectories();
+        String safe = sanitize(presetName);
+        if (safe.isBlank()) return List.of();
+        try (var stream = Files.list(BACKUPS)) {
+            return stream
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> name.startsWith(safe + "-") && name.endsWith(".json"))
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .toList();
+        } catch (IOException ignored) {
+            return List.of();
+        }
+    }
+
+    public static EditorModel.Project loadLatestBackup(String presetName) throws IOException {
+        String safe = sanitize(presetName);
+        List<String> candidates = backups(safe);
+        if (candidates.isEmpty()) return null;
+        Path path = BACKUPS.resolve(candidates.getFirst());
+        EditorModel.Project project = EditorModel.GSON.fromJson(Files.readString(path, StandardCharsets.UTF_8), EditorModel.Project.class);
+        normalize(project);
+        project.sourcePreset = safe;
+        project.dirty = true;
+        return project;
+    }
+
     public static void autosave(EditorModel.Project project) {
         ensureDirectories();
         try {
