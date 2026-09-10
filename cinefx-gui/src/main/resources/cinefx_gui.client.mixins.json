@@ -6,7 +6,8 @@
   "client": [
     "CineFxStudioTimelineMixin",
     "SceneManipulatorSamplingMixin",
-    "CineFxBridgeValidationMixin"
+    "CineFxBridgeValidationMixin",
+    "CineFxBridgeTrackEncodingMixin"
   ],
   "injectors": {
     "defaultRequire": 1
