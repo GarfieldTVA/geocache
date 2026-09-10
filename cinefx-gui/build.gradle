@@ -1,0 +1,47 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+base { archivesName = project.archives_base_name }
+
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        cinefx_gui {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    withSourcesJar()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings "net.fabricmc:yarn:${yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+
+    // CineFX is a separate mod. Nothing from CineFX is shaded or copied into CineFX GUI.
+    // From the CineFX-API checkout, run: ./gradlew publishToMavenLocal
+    modCompileOnly "dev.garfield:cinefx:${cinefx_version}"
+    modLocalRuntime "dev.garfield:cinefx:${cinefx_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'cinefx_version', project.cinefx_version
+    filesMatching('fabric.mod.json') {
+        expand version: project.version, cinefx_version: project.cinefx_version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
