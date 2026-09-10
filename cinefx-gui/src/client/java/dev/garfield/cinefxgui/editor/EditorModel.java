@@ -42,10 +42,9 @@ public final class EditorModel {
         public static Project fresh(MinecraftClient client) {
             Project project = new Project();
             if (client != null && client.player != null) {
-                Vec3d p = client.player.getPos();
-                project.anchorX = p.x;
-                project.anchorY = p.y;
-                project.anchorZ = p.z;
+                project.anchorX = client.player.getX();
+                project.anchorY = client.player.getY();
+                project.anchorZ = client.player.getZ();
             }
             project.seed = System.nanoTime();
             return project;
