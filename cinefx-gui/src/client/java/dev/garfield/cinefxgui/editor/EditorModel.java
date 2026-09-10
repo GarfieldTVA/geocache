@@ -17,12 +17,13 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class EditorModel {
+    public static final int CURRENT_FORMAT_VERSION = 2;
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     private EditorModel() { }
 
     public static final class Project {
-        public int formatVersion = 1;
+        public int formatVersion = CURRENT_FORMAT_VERSION;
         public String name = "Untitled";
         public String sceneId = "cinefx_gui:untitled";
         public double durationTicks = 200.0;
