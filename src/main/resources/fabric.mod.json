@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "cinefx",
+  "version": "${version}",
+  "name": "CineFX",
+  "description": "High-performance cinematic FX and event framework for Minecraft 1.21.11.",
+  "authors": ["GarfieldTVA"],
+  "contact": {
+    "sources": "https://github.com/GarfieldTVA/geocache"
+  },
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.garfield.cinefx.CineFx"],
+    "client": ["dev.garfield.cinefx.client.CineFxClient"]
+  },
+  "mixins": [
+    "cinefx.client.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.2",
+    "minecraft": "=1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
