@@ -1,0 +1,32 @@
+name: CineFX GUI
+
+on:
+  push:
+    branches: ["feature/cinefx-gui"]
+  pull_request:
+    paths:
+      - "cinefx-gui/**"
+      - ".github/workflows/cinefx-gui.yml"
+      - "src/**"
+      - "build.gradle"
+      - "gradle.properties"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Publish CineFX API locally
+        run: |
+          chmod +x ./gradlew
+          ./gradlew publishToMavenLocal --stacktrace
+      - name: Build standalone CineFX GUI mod
+        run: ./gradlew -p cinefx-gui build --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cinefx-gui
+          path: cinefx-gui/build/libs/*.jar
