@@ -6,6 +6,7 @@
   "client": [
     "CineFxStudioTimelineMixin",
     "CineFxStudioDiagnosticsMixin",
+    "CineFxStudioBackupMixin",
     "SceneManipulatorSamplingMixin",
     "CineFxBridgeValidationMixin",
     "CineFxBridgeTrackEncodingMixin",
