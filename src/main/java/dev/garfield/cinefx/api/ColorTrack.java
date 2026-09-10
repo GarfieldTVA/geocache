@@ -25,6 +25,9 @@ public final class ColorTrack {
         return of(Keyframe.at(0.0, argb));
     }
 
+    /** Immutable ordered keyframe view for tooling, serializers and editors. */
+    public List<Keyframe<Integer>> keyframes() { return keys; }
+
     public int sample(double tick) {
         if (keys.size() == 1 || tick <= keys.getFirst().tick()) return keys.getFirst().value();
         if (tick >= keys.getLast().tick()) return keys.getLast().value();
