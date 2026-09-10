@@ -712,9 +712,9 @@ public final class CineFxStudioScreen extends Screen {
         if (input.key() == GLFW.GLFW_KEY_F) { focusSelected(); return true; }
         if (input.key() == GLFW.GLFW_KEY_C) { preview.setSceneCameraPreview(client, !preview.sceneCameraPreview()); return true; }
         if (input.key() == GLFW.GLFW_KEY_K || input.key() == GLFW.GLFW_KEY_I) { addKeyframesAtPlayhead(); return true; }
-        if (input.key() == GLFW.GLFW_KEY_NUMPAD_1) { snapView(0, 0); return true; }
-        if (input.key() == GLFW.GLFW_KEY_NUMPAD_3) { snapView(-90, 0); return true; }
-        if (input.key() == GLFW.GLFW_KEY_NUMPAD_7) { snapView(0, 89); return true; }
+        if (input.key() == GLFW.GLFW_KEY_KP_1) { snapView(0, 0); return true; }
+        if (input.key() == GLFW.GLFW_KEY_KP_3) { snapView(-90, 0); return true; }
+        if (input.key() == GLFW.GLFW_KEY_KP_7) { snapView(0, 89); return true; }
         return super.keyPressed(input);
     }
 
