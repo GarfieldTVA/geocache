@@ -8,7 +8,8 @@
     "SceneManipulatorSamplingMixin",
     "CineFxBridgeValidationMixin",
     "CineFxBridgeTrackEncodingMixin",
-    "ViewportGizmoProjectionMixin"
+    "ViewportGizmoProjectionMixin",
+    "CineFxBridgeDefaultsMixin"
   ],
   "injectors": {
     "defaultRequire": 1
