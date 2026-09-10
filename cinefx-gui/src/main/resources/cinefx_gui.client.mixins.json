@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.garfield.cinefxgui.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "CineFxStudioTimelineMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
