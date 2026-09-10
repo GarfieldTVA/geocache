@@ -5,9 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import dev.garfield.cinefx.api.Easing;
-import dev.garfield.cinefx.api.PathTrack;
-import dev.garfield.cinefx.api.Transform;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -76,28 +73,14 @@ public final class EditorSchema {
         return JsonNull.INSTANCE;
     }
 
+    /** Inserts a key at the exact currently rendered value instead of copying the last key. */
     public static JsonObject duplicateTrackKey(JsonObject track, double tick) {
-        JsonObject key = new JsonObject();
-        key.addProperty("tick", tick);
-        key.addProperty("easing", Easing.LINEAR.name());
-        JsonArray keys = track.has("keys") && track.get("keys").isJsonArray() ? track.getAsJsonArray("keys") : new JsonArray();
-        if (!keys.isEmpty() && keys.get(keys.size() - 1).isJsonObject() && keys.get(keys.size() - 1).getAsJsonObject().has("value"))
-            key.add("value", keys.get(keys.size() - 1).getAsJsonObject().get("value").deepCopy());
-        else key.addProperty("value", 0);
-        return key;
+        return AnimationJson.duplicateTrackKey(track, tick);
     }
 
+    /** Inserts a path point sampled from LINEAR/CATMULL_ROM/BEZIER path interpolation. */
     public static JsonObject duplicatePathPoint(JsonObject path, double tick) {
-        JsonObject point = new JsonObject();
-        point.addProperty("tick", tick);
-        JsonArray points = path.has("points") && path.get("points").isJsonArray() ? path.getAsJsonArray("points") : new JsonArray();
-        if (!points.isEmpty() && points.get(points.size() - 1).isJsonObject() && points.get(points.size() - 1).getAsJsonObject().has("position"))
-            point.add("position", points.get(points.size() - 1).getAsJsonObject().get("position").deepCopy());
-        else point.add("position", vec(0, 0, 0));
-        point.add("inHandle", JsonNull.INSTANCE);
-        point.add("outHandle", JsonNull.INSTANCE);
-        point.addProperty("easing", Easing.LINEAR.name());
-        return point;
+        return AnimationJson.duplicatePathPoint(path, tick);
     }
 
     public static String cycleEnum(Type type, String current, int direction) {
