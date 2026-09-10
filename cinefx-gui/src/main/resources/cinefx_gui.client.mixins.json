@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "CineFxStudioTimelineMixin",
+    "CineFxStudioDiagnosticsMixin",
     "SceneManipulatorSamplingMixin",
     "CineFxBridgeValidationMixin",
     "CineFxBridgeTrackEncodingMixin",
