@@ -21,7 +21,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +40,12 @@ public abstract class CineFxStudioTimelineMixin {
     @Unique private EditorModel.Project cinefxGui$selectionProject;
     @Unique private IdentityHashMap<JsonObject, JsonArray> cinefxGui$selectedKeys;
     @Unique private IdentityHashMap<JsonObject, Double> cinefxGui$dragStartTicks;
+    @Unique private boolean cinefxGui$boxSelecting;
+    @Unique private boolean cinefxGui$boxAdditive;
+    @Unique private double cinefxGui$boxStartX;
+    @Unique private double cinefxGui$boxStartY;
+    @Unique private double cinefxGui$boxCurrentX;
+    @Unique private double cinefxGui$boxCurrentY;
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void cinefxGui$timelineKeys(KeyInput input, CallbackInfoReturnable<Boolean> cir) {
@@ -59,8 +64,9 @@ public abstract class CineFxStudioTimelineMixin {
             }
         }
 
-        if (input.key() == GLFW.GLFW_KEY_ESCAPE && !cinefxGui$selected().isEmpty()) {
+        if (input.key() == GLFW.GLFW_KEY_ESCAPE && (!cinefxGui$selected().isEmpty() || cinefxGui$boxSelecting)) {
             cinefxGui$selected().clear();
+            cinefxGui$boxSelecting = false;
             cir.setReturnValue(true);
             return;
         }
@@ -101,6 +107,13 @@ public abstract class CineFxStudioTimelineMixin {
         cinefxGui$ensureSelectionProject();
         if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return;
 
+        if (cinefxGui$boxSelecting) {
+            cinefxGui$boxCurrentX = click.x();
+            cinefxGui$boxCurrentY = click.y();
+            cir.setReturnValue(true);
+            return;
+        }
+
         Object dragMode = cinefxGui$readField(this, "dragMode");
         if (dragMode != null && "KEYFRAME".equals(dragMode.toString()) && cinefxGui$selected().size() > 1
                 && cinefxGui$dragStartTicks != null && !cinefxGui$dragStartTicks.isEmpty()) {
@@ -131,6 +144,18 @@ public abstract class CineFxStudioTimelineMixin {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void cinefxGui$keyframeActions(Click click, boolean doubled, CallbackInfoReturnable<Boolean> cir) {
         cinefxGui$ensureSelectionProject();
+
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && cinefxGui$isAltDown()
+                && click.y() >= cinefxGui$timelineTop() && click.x() >= 205.0) {
+            cinefxGui$boxSelecting = true;
+            cinefxGui$boxAdditive = cinefxGui$isCtrlDown();
+            cinefxGui$boxStartX = cinefxGui$boxCurrentX = click.x();
+            cinefxGui$boxStartY = cinefxGui$boxCurrentY = click.y();
+            if (!cinefxGui$boxAdditive) cinefxGui$selected().clear();
+            cir.setReturnValue(true);
+            return;
+        }
+
         Object rawHits = cinefxGui$readField(this, "keyHits");
         if (!(rawHits instanceof List<?> hits)) return;
 
@@ -192,29 +217,69 @@ public abstract class CineFxStudioTimelineMixin {
     @Inject(method = "drawTimeline", at = @At("TAIL"))
     private void cinefxGui$drawKeySelection(DrawContext context, int mouseX, int mouseY, CallbackInfo ci) {
         cinefxGui$ensureSelectionProject();
-        if (cinefxGui$selected().isEmpty()) return;
         Object rawHits = cinefxGui$readField(this, "keyHits");
-        if (!(rawHits instanceof List<?> hits)) return;
-        for (Object hit : hits) {
-            Object keyRaw = cinefxGui$readField(hit, "key");
-            if (!(keyRaw instanceof JsonObject key) || !cinefxGui$selected().containsKey(key)) continue;
-            try {
-                int x1 = ((Number)cinefxGui$readField(hit, "x1")).intValue();
-                int y1 = ((Number)cinefxGui$readField(hit, "y1")).intValue();
-                int x2 = ((Number)cinefxGui$readField(hit, "x2")).intValue();
-                int y2 = ((Number)cinefxGui$readField(hit, "y2")).intValue();
-                int color = 0xFFFFE08A;
-                context.fill(x1, y1, x2, y1 + 1, color);
-                context.fill(x1, y2 - 1, x2, y2, color);
-                context.fill(x1, y1, x1 + 1, y2, color);
-                context.fill(x2 - 1, y1, x2, y2, color);
-            } catch (RuntimeException ignored) { }
+        if (rawHits instanceof List<?> hits && !cinefxGui$selected().isEmpty()) {
+            for (Object hit : hits) {
+                Object keyRaw = cinefxGui$readField(hit, "key");
+                if (!(keyRaw instanceof JsonObject key) || !cinefxGui$selected().containsKey(key)) continue;
+                try {
+                    int x1 = ((Number)cinefxGui$readField(hit, "x1")).intValue();
+                    int y1 = ((Number)cinefxGui$readField(hit, "y1")).intValue();
+                    int x2 = ((Number)cinefxGui$readField(hit, "x2")).intValue();
+                    int y2 = ((Number)cinefxGui$readField(hit, "y2")).intValue();
+                    int color = 0xFFFFE08A;
+                    context.fill(x1, y1, x2, y1 + 1, color);
+                    context.fill(x1, y2 - 1, x2, y2, color);
+                    context.fill(x1, y1, x1 + 1, y2, color);
+                    context.fill(x2 - 1, y1, x2, y2, color);
+                } catch (RuntimeException ignored) { }
+            }
+        }
+
+        if (cinefxGui$boxSelecting) {
+            int x1 = (int)Math.floor(Math.min(cinefxGui$boxStartX, cinefxGui$boxCurrentX));
+            int y1 = (int)Math.floor(Math.min(cinefxGui$boxStartY, cinefxGui$boxCurrentY));
+            int x2 = (int)Math.ceil(Math.max(cinefxGui$boxStartX, cinefxGui$boxCurrentX));
+            int y2 = (int)Math.ceil(Math.max(cinefxGui$boxStartY, cinefxGui$boxCurrentY));
+            x1 = Math.max(205, x1);
+            y1 = Math.max(cinefxGui$timelineTop(), y1);
+            context.fill(x1, y1, x2, y2, 0x223FA8E8);
+            context.fill(x1, y1, x2, y1 + 1, 0xFF72C5F2);
+            context.fill(x1, y2 - 1, x2, y2, 0xFF72C5F2);
+            context.fill(x1, y1, x1 + 1, y2, 0xFF72C5F2);
+            context.fill(x2 - 1, y1, x2, y2, 0xFF72C5F2);
         }
     }
 
-    @Inject(method = "mouseReleased", at = @At("TAIL"))
+    @Inject(method = "mouseReleased", at = @At("TAIL"), cancellable = true)
     private void cinefxGui$endMultiDrag(Click click, CallbackInfoReturnable<Boolean> cir) {
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) cinefxGui$dragStartTicks = null;
+        if (click.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return;
+        if (cinefxGui$boxSelecting) {
+            double sx1 = Math.min(cinefxGui$boxStartX, cinefxGui$boxCurrentX);
+            double sy1 = Math.min(cinefxGui$boxStartY, cinefxGui$boxCurrentY);
+            double sx2 = Math.max(cinefxGui$boxStartX, cinefxGui$boxCurrentX);
+            double sy2 = Math.max(cinefxGui$boxStartY, cinefxGui$boxCurrentY);
+            Object rawHits = cinefxGui$readField(this, "keyHits");
+            if (rawHits instanceof List<?> hits) {
+                for (Object hit : hits) {
+                    try {
+                        double hx1 = ((Number)cinefxGui$readField(hit, "x1")).doubleValue();
+                        double hy1 = ((Number)cinefxGui$readField(hit, "y1")).doubleValue();
+                        double hx2 = ((Number)cinefxGui$readField(hit, "x2")).doubleValue();
+                        double hy2 = ((Number)cinefxGui$readField(hit, "y2")).doubleValue();
+                        if (hx2 < sx1 || hx1 > sx2 || hy2 < sy1 || hy1 > sy2) continue;
+                        Object keyRaw = cinefxGui$readField(hit, "key");
+                        Object parentRaw = cinefxGui$readField(hit, "parent");
+                        if (keyRaw instanceof JsonObject key) cinefxGui$selected().put(key, parentRaw instanceof JsonArray a ? a : null);
+                    } catch (RuntimeException ignored) { }
+                }
+            }
+            cinefxGui$boxSelecting = false;
+            cinefxGui$dragStartTicks = null;
+            cir.setReturnValue(true);
+            return;
+        }
+        cinefxGui$dragStartTicks = null;
     }
 
     @Unique
@@ -229,6 +294,7 @@ public abstract class CineFxStudioTimelineMixin {
         cinefxGui$selectionProject = project;
         cinefxGui$selected().clear();
         cinefxGui$dragStartTicks = null;
+        cinefxGui$boxSelecting = false;
     }
 
     @Unique
@@ -335,5 +401,14 @@ public abstract class CineFxStudioTimelineMixin {
         long window = client.getWindow().getHandle();
         return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
                 || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+    }
+
+    @Unique
+    private static boolean cinefxGui$isAltDown() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) return false;
+        long window = client.getWindow().getHandle();
+        return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
+                || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
     }
 }
