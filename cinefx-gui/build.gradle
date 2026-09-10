@@ -6,6 +6,14 @@ version = project.mod_version
 group = project.maven_group
 base { archivesName = project.archives_base_name }
 
+// Loom injects project repositories, so keep mavenLocal here as well as in settings.gradle.
+// CineFX GUI remains a separate artifact and only consumes CineFX through Maven/public API types.
+repositories {
+    mavenLocal()
+    maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+    mavenCentral()
+}
+
 loom {
     splitEnvironmentSourceSets()
     mods {
