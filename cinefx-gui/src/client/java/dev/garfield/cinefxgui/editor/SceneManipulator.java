@@ -3,7 +3,6 @@ package dev.garfield.cinefxgui.editor;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
@@ -70,7 +69,12 @@ public final class SceneManipulator {
 
     private static final String[] POSITION_NAMES = {
             "baseOffset", "centerOffset", "offset", "fromOffset", "originOffset", "position",
-            "emitterOffset", "targetOffset", "lookAtOffset"
+            "emitterOffset", "sourceOffset", "startOffset", "anchorOffset", "targetOffset",
+            "destinationOffset", "toOffset", "endOffset", "lookAtOffset"
+    };
+    private static final String[] POSITION_TRACK_NAMES = {
+            "translation", "position", "positionTrack", "offset", "offsetTrack", "center", "centerTrack",
+            "origin", "originTrack", "anchor", "anchorTrack", "source", "sourceTrack", "target", "targetTrack"
     };
 
     private SceneManipulator() { }
@@ -79,6 +83,7 @@ public final class SceneManipulator {
         if (element == null || element.data == null) return null;
         NamedVector base = findPreferredVector(element.data, POSITION_NAMES);
         Vec3d baseValue = base == null ? Vec3d.ZERO : readVec(base.value, Vec3d.ZERO);
+
         JsonObject transform = findTrack(element.data, "TransformTrack");
         if (transform != null) {
             JsonObject value = sampleTransformValue(transform, localTick);
@@ -86,7 +91,22 @@ public final class SceneManipulator {
                 return baseValue.add(readVec(value.getAsJsonObject("translation"), Vec3d.ZERO));
             }
         }
+
+        JsonObject advanced = findAdvancedTransform(element.data);
+        JsonObject advancedTranslation = advancedChannel(advanced, "translation");
+        if (advancedTranslation != null) {
+            JsonObject sampled = sampleVec3TrackValue(advancedTranslation, localTick);
+            if (sampled != null) return baseValue.add(readVec(sampled, Vec3d.ZERO));
+        }
+
         if (base != null) return baseValue;
+
+        JsonObject positionalTrack = findVec3TrackByNames(element.data, POSITION_TRACK_NAMES);
+        if (positionalTrack != null) {
+            JsonObject sampled = sampleVec3TrackValue(positionalTrack, localTick);
+            if (sampled != null) return readVec(sampled, Vec3d.ZERO);
+        }
+
         JsonObject path = findTrack(element.data, "PathTrack");
         if (path != null) {
             JsonObject point = nearestTimedObject(path.getAsJsonArray("points"), localTick);
@@ -140,6 +160,7 @@ public final class SceneManipulator {
         if (element.data.has("baseOffset")) element.data.add("baseOffset", vec(localPosition));
         else if (element.data.has("centerOffset")) element.data.add("centerOffset", vec(localPosition));
         else if (element.data.has("offset")) element.data.add("offset", vec(localPosition));
+        else if (element.data.has("position")) element.data.add("position", vec(localPosition));
     }
 
     public static List<Vec3d> animationPathLocal(EditorModel.Element element) {
@@ -147,24 +168,34 @@ public final class SceneManipulator {
         ArrayList<Vec3d> result = new ArrayList<>();
         NamedVector base = findPreferredVector(element.data, POSITION_NAMES);
         Vec3d baseValue = base == null ? Vec3d.ZERO : readVec(base.value, Vec3d.ZERO);
+
         JsonObject transform = findTrack(element.data, "TransformTrack");
         if (transform != null && transform.has("keys") && transform.get("keys").isJsonArray()) {
-            for (JsonElement raw : transform.getAsJsonArray("keys")) {
-                if (!raw.isJsonObject()) continue;
-                JsonObject key = raw.getAsJsonObject();
-                if (!key.has("value") || !key.get("value").isJsonObject()) continue;
-                JsonObject value = key.getAsJsonObject("value");
-                if (value.has("translation") && value.get("translation").isJsonObject())
-                    result.add(baseValue.add(readVec(value.getAsJsonObject("translation"), Vec3d.ZERO)));
-            }
+            appendTransformPath(result, transform.getAsJsonArray("keys"), baseValue);
         }
         if (result.size() > 1) return List.copyOf(result);
+
+        JsonObject advanced = findAdvancedTransform(element.data);
+        JsonObject advancedTranslation = advancedChannel(advanced, "translation");
+        if (advancedTranslation != null && advancedTranslation.has("keys") && advancedTranslation.get("keys").isJsonArray()) {
+            result.clear();
+            appendVec3TrackPath(result, advancedTranslation.getAsJsonArray("keys"), baseValue);
+        }
+        if (result.size() > 1) return List.copyOf(result);
+
+        JsonObject positionalTrack = findVec3TrackByNames(element.data, POSITION_TRACK_NAMES);
+        if (positionalTrack != null && positionalTrack.has("keys") && positionalTrack.get("keys").isJsonArray()) {
+            result.clear();
+            appendVec3TrackPath(result, positionalTrack.getAsJsonArray("keys"), baseValue);
+        }
+        if (result.size() > 1) return List.copyOf(result);
+
         JsonObject path = findTrack(element.data, "PathTrack");
         if (path != null && path.has("points") && path.get("points").isJsonArray()) {
             result.clear();
             for (JsonElement raw : path.getAsJsonArray("points")) {
                 if (raw.isJsonObject() && raw.getAsJsonObject().has("position") && raw.getAsJsonObject().get("position").isJsonObject())
-                    result.add(readVec(raw.getAsJsonObject().getAsJsonObject("position"), Vec3d.ZERO));
+                    result.add(baseValue.add(readVec(raw.getAsJsonObject().getAsJsonObject("position"), Vec3d.ZERO)));
             }
         }
         return List.copyOf(result);
@@ -182,8 +213,17 @@ public final class SceneManipulator {
             JsonObject value = ensureTransformValue(transform, tick);
             if (value != null) return ensureVec(value, "translation", Vec3d.ZERO);
         }
+
+        JsonObject advanced = findAdvancedTransform(root);
+        JsonObject advancedTranslation = advancedChannel(advanced, "translation");
+        if (advancedTranslation != null) return ensureVec3TrackValue(advancedTranslation, tick, Vec3d.ZERO);
+
         NamedVector base = findPreferredVector(root, POSITION_NAMES);
         if (base != null) return base.value;
+
+        JsonObject positionalTrack = findVec3TrackByNames(root, POSITION_TRACK_NAMES);
+        if (positionalTrack != null) return ensureVec3TrackValue(positionalTrack, tick, Vec3d.ZERO);
+
         JsonObject path = findTrack(root, "PathTrack");
         if (path != null && path.has("points") && path.get("points").isJsonArray()) {
             JsonObject point = ensureTimedObject(path.getAsJsonArray("points"), tick, "position", Vec3d.ZERO);
@@ -198,9 +238,14 @@ public final class SceneManipulator {
             JsonObject value = ensureTransformValue(transform, tick);
             if (value != null) return ensureVec(value, "rotationDegrees", Vec3d.ZERO);
         }
+
+        JsonObject advanced = findAdvancedTransform(root);
+        JsonObject advancedRotation = advancedChannel(advanced, "rotationDegrees");
+        if (advancedRotation != null) return ensureVec3TrackValue(advancedRotation, tick, Vec3d.ZERO);
+
         JsonObject direct = findNamedVector(root, "rotationDegrees", "rotation", "eulerDegrees");
         if (direct != null) return direct;
-        JsonObject track = findVec3TrackByName(root, true, false);
+        JsonObject track = findVec3TrackByNames(root, "rotationDegrees", "rotation", "rotationTrack", "eulerDegrees", "angles");
         return track == null ? null : ensureVec3TrackValue(track, tick, Vec3d.ZERO);
     }
 
@@ -210,16 +255,32 @@ public final class SceneManipulator {
             JsonObject value = ensureTransformValue(transform, tick);
             if (value != null) return ensureVec(value, "scale", new Vec3d(1, 1, 1));
         }
+
+        JsonObject advanced = findAdvancedTransform(root);
+        JsonObject advancedScale = advancedChannel(advanced, "scale");
+        if (advancedScale != null) return ensureVec3TrackValue(advancedScale, tick, new Vec3d(1, 1, 1));
+
         JsonObject direct = findNamedVector(root, "scale", "scale3d");
         if (direct != null) return direct;
-        JsonObject track = findVec3TrackByName(root, false, true);
+        JsonObject track = findVec3TrackByNames(root, "scale", "scale3d", "scaleTrack");
         return track == null ? null : ensureVec3TrackValue(track, tick, new Vec3d(1, 1, 1));
     }
 
     private static JsonObject ensureVec3TrackValue(JsonObject track, double tick, Vec3d fallback) {
         JsonArray keys = ensureArray(track, "keys");
-        JsonObject key = ensureTimedObject(keys, tick, "value", fallback);
-        return key == null ? null : ensureVec(key, "value", fallback);
+        for (JsonElement raw : keys) {
+            if (!raw.isJsonObject()) continue;
+            JsonObject key = raw.getAsJsonObject();
+            if (Math.abs(number(key, "tick", -1e30) - tick) < 0.001) return ensureVec(key, "value", fallback);
+        }
+        JsonObject sampled = sampleVec3TrackValue(track, tick);
+        JsonObject key = new JsonObject();
+        key.addProperty("tick", tick);
+        key.add("value", sampled == null ? vec(fallback) : sampled.deepCopy());
+        key.addProperty("easing", "LINEAR");
+        keys.add(key);
+        sortTimedArray(keys);
+        return ensureVec(key, "value", fallback);
     }
 
     private static JsonObject ensureTransformValue(JsonObject track, double tick) {
@@ -243,10 +304,8 @@ public final class SceneManipulator {
 
     private static JsonObject sampleTransformValue(JsonObject track, double tick) {
         if (track == null || !track.has("keys") || !track.get("keys").isJsonArray()) return null;
-        ArrayList<JsonObject> keys = new ArrayList<>();
-        for (JsonElement raw : track.getAsJsonArray("keys")) if (raw.isJsonObject()) keys.add(raw.getAsJsonObject());
+        ArrayList<JsonObject> keys = timedObjects(track.getAsJsonArray("keys"));
         if (keys.isEmpty()) return null;
-        keys.sort(Comparator.comparingDouble(k -> number(k, "tick", 0)));
         if (tick <= number(keys.getFirst(), "tick", 0)) return transformValue(keys.getFirst());
         if (tick >= number(keys.getLast(), "tick", 0)) return transformValue(keys.getLast());
         for (int i = 0; i < keys.size() - 1; i++) {
@@ -266,9 +325,41 @@ public final class SceneManipulator {
         return transformValue(keys.getFirst());
     }
 
+    private static JsonObject sampleVec3TrackValue(JsonObject track, double tick) {
+        if (track == null || !track.has("keys") || !track.get("keys").isJsonArray()) return null;
+        ArrayList<JsonObject> keys = timedObjects(track.getAsJsonArray("keys"));
+        if (keys.isEmpty()) return null;
+        if (tick <= number(keys.getFirst(), "tick", 0)) return vecValue(keys.getFirst());
+        if (tick >= number(keys.getLast(), "tick", 0)) return vecValue(keys.getLast());
+        for (int i = 0; i < keys.size() - 1; i++) {
+            JsonObject a = keys.get(i), b = keys.get(i + 1);
+            double ta = number(a, "tick", 0), tb = number(b, "tick", ta);
+            if (tick < ta || tick > tb) continue;
+            JsonObject av = vecValue(a), bv = vecValue(b);
+            if (av == null) return bv;
+            if (bv == null) return av;
+            double t = tb <= ta ? 1 : (tick - ta) / (tb - ta);
+            return vec(lerp(readVec(av, Vec3d.ZERO), readVec(bv, Vec3d.ZERO), t));
+        }
+        return vecValue(keys.getFirst());
+    }
+
+    private static ArrayList<JsonObject> timedObjects(JsonArray array) {
+        ArrayList<JsonObject> keys = new ArrayList<>();
+        if (array != null) for (JsonElement raw : array) if (raw.isJsonObject()) keys.add(raw.getAsJsonObject());
+        keys.sort(Comparator.comparingDouble(k -> number(k, "tick", 0)));
+        return keys;
+    }
+
     private static JsonObject transformValue(JsonObject key) {
         if (key == null || !key.has("value") || !key.get("value").isJsonObject()) return null;
         return normalizeTransform(key.getAsJsonObject("value").deepCopy());
+    }
+
+    private static JsonObject vecValue(JsonObject key) {
+        if (key == null || !key.has("value") || !key.get("value").isJsonObject()) return null;
+        JsonObject value = key.getAsJsonObject("value");
+        return isVec(value) ? value.deepCopy() : null;
     }
 
     private static JsonObject normalizeTransform(JsonObject value) {
@@ -332,18 +423,59 @@ public final class SceneManipulator {
         return null;
     }
 
-    private static JsonObject findVec3TrackByName(JsonObject root, boolean rotation, boolean scale) {
-        for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
-            String name = entry.getKey().toLowerCase(Locale.ROOT);
-            JsonElement value = entry.getValue();
-            if (value.isJsonObject()) {
-                JsonObject object = value.getAsJsonObject();
-                if ("Vec3Track".equals(string(object, "$kind", "")) && ((rotation && name.contains("rotat")) || (scale && name.contains("scale")))) return object;
-                JsonObject nested = findVec3TrackByName(object, rotation, scale);
-                if (nested != null) return nested;
+    private static JsonObject findAdvancedTransform(JsonElement value) {
+        if (value == null || value.isJsonNull()) return null;
+        if (value.isJsonObject()) {
+            JsonObject object = value.getAsJsonObject();
+            String type = string(object, "$type", "");
+            if (type.endsWith("AdvancedTransformTrack") || hasAdvancedChannels(object)) return object;
+            for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+                JsonObject found = findAdvancedTransform(entry.getValue());
+                if (found != null) return found;
+            }
+        } else if (value.isJsonArray()) {
+            for (JsonElement child : value.getAsJsonArray()) {
+                JsonObject found = findAdvancedTransform(child);
+                if (found != null) return found;
             }
         }
         return null;
+    }
+
+    private static boolean hasAdvancedChannels(JsonObject object) {
+        return isVec3Track(object.get("translation")) && isVec3Track(object.get("rotationDegrees"))
+                && isVec3Track(object.get("scale"));
+    }
+
+    private static JsonObject advancedChannel(JsonObject advanced, String name) {
+        if (advanced == null || !advanced.has(name) || !advanced.get(name).isJsonObject()) return null;
+        JsonObject channel = advanced.getAsJsonObject(name);
+        return "Vec3Track".equals(string(channel, "$kind", "")) ? channel : null;
+    }
+
+    private static boolean isVec3Track(JsonElement value) {
+        return value != null && value.isJsonObject() && "Vec3Track".equals(string(value.getAsJsonObject(), "$kind", ""));
+    }
+
+    private static JsonObject findVec3TrackByNames(JsonObject root, String... candidates) {
+        for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+            String name = entry.getKey().toLowerCase(Locale.ROOT);
+            JsonElement value = entry.getValue();
+            if (!value.isJsonObject()) continue;
+            JsonObject object = value.getAsJsonObject();
+            if ("Vec3Track".equals(string(object, "$kind", "")) && matchesAnyName(name, candidates)) return object;
+            JsonObject nested = findVec3TrackByNames(object, candidates);
+            if (nested != null) return nested;
+        }
+        return null;
+    }
+
+    private static boolean matchesAnyName(String value, String... candidates) {
+        for (String candidate : candidates) {
+            String needle = candidate.toLowerCase(Locale.ROOT);
+            if (value.equals(needle) || value.contains(needle)) return true;
+        }
+        return false;
     }
 
     private static NamedVector findPreferredVector(JsonObject root, String... names) {
@@ -431,6 +563,23 @@ public final class SceneManipulator {
         value.add("rotationDegrees", vec(Vec3d.ZERO));
         value.add("scale", vec(new Vec3d(1, 1, 1)));
         return value;
+    }
+
+    private static void appendTransformPath(List<Vec3d> out, JsonArray keys, Vec3d base) {
+        for (JsonElement raw : keys) {
+            if (!raw.isJsonObject()) continue;
+            JsonObject value = transformValue(raw.getAsJsonObject());
+            if (value != null && value.has("translation") && value.get("translation").isJsonObject())
+                out.add(base.add(readVec(value.getAsJsonObject("translation"), Vec3d.ZERO)));
+        }
+    }
+
+    private static void appendVec3TrackPath(List<Vec3d> out, JsonArray keys, Vec3d base) {
+        for (JsonElement raw : keys) {
+            if (!raw.isJsonObject()) continue;
+            JsonObject value = vecValue(raw.getAsJsonObject());
+            if (value != null) out.add(base.add(readVec(value, Vec3d.ZERO)));
+        }
     }
 
     private static JsonObject vec(Vec3d value) {
