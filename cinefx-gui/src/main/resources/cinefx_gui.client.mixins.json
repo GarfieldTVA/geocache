@@ -4,7 +4,8 @@
   "package": "dev.garfield.cinefxgui.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "CineFxStudioTimelineMixin"
+    "CineFxStudioTimelineMixin",
+    "SceneManipulatorSamplingMixin"
   ],
   "injectors": {
     "defaultRequire": 1
