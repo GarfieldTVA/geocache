@@ -3,6 +3,7 @@ package dev.garfield.cinefxgui.mixin;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.garfield.cinefx.api.ColorTrack;
+import dev.garfield.cinefx.api.CubicBezier;
 import dev.garfield.cinefx.api.Keyframe;
 import dev.garfield.cinefx.api.ScalarTrack;
 import dev.garfield.cinefxgui.editor.CineFxBridge;
@@ -26,6 +27,7 @@ public abstract class CineFxBridgeTrackEncodingMixin {
             item.addProperty("tick", key.tick());
             item.addProperty("value", key.value());
             item.addProperty("easing", key.easingToNext().name());
+            addBezier(item, key.bezierToNext());
             keys.add(item);
         }
         object.add("keys", keys);
@@ -42,9 +44,18 @@ public abstract class CineFxBridgeTrackEncodingMixin {
             item.addProperty("tick", key.tick());
             item.addProperty("value", String.format(Locale.ROOT, "#%08X", key.value()));
             item.addProperty("easing", key.easingToNext().name());
+            addBezier(item, key.bezierToNext());
             keys.add(item);
         }
         object.add("keys", keys);
         cir.setReturnValue(object);
+    }
+
+    private static void addBezier(JsonObject key, CubicBezier curve) {
+        if (curve == null) return;
+        JsonObject value = new JsonObject();
+        value.addProperty("x1", curve.x1()); value.addProperty("y1", curve.y1());
+        value.addProperty("x2", curve.x2()); value.addProperty("y2", curve.y2());
+        key.add("bezier", value);
     }
 }
