@@ -4,6 +4,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -135,6 +136,62 @@ final class CineFxApiRegressionTest {
             assertEquals(second, AssetBundle.Registry.snapshot().get(id));
         } finally {
             AssetBundle.Registry.remove(id);
+        }
+    }
+
+    @Test
+    void publicationJsonRoundTripsNestedProgramAndBundles() {
+        Identifier programId = Identifier.of("cinefx_test", "wire_" + Long.toUnsignedString(System.nanoTime()));
+        Identifier bundleId = Identifier.of("cinefx_test", "bundle");
+        EventProgramSpec.ConditionSpec nested = new EventProgramSpec.ConditionSpec.All(List.of(
+                new EventProgramSpec.ConditionSpec.After(12.5),
+                new EventProgramSpec.ConditionSpec.Not(new EventProgramSpec.ConditionSpec.VariableEquals("mode", "blocked")),
+                new EventProgramSpec.ConditionSpec.AssetsReady(bundleId)));
+        EventProgramSpec spec = new EventProgramSpec(programId, "intro", List.of(
+                new EventProgramSpec.PhaseSpec("intro",
+                        List.of(new EventProgramSpec.ActionSpec.Preload(bundleId),
+                                new EventProgramSpec.ActionSpec.Play(Identifier.of("cinefx_test", "scene"), 4, 9, Map.of("who", "all"))),
+                        List.of(new EventProgramSpec.ActionSpec.Marker("exit", Map.of("reason", "done"))),
+                        List.of(new EventProgramSpec.TransitionSpec("end", 7, nested,
+                                List.of(new EventProgramSpec.ActionSpec.AddVariable("score", 2.5))))),
+                new EventProgramSpec.PhaseSpec("end", List.of(), List.of(), List.of())),
+                Map.of("revision", "42"));
+        AssetBundle bundle = new AssetBundle(bundleId,
+                List.of(Identifier.of("cinefx_test", "textures/event.png")),
+                List.of(Identifier.of("cinefx_test", "model/event.glb")), Map.of("tier", "hero"));
+
+        EventPublication original = new EventPublication(spec, List.of(bundle));
+        EventPublication decoded = EventPublicationJson.decode(EventPublicationJson.encode(original));
+        assertEquals(original, decoded);
+        assertDoesNotThrow(() -> decoded.program().compile());
+    }
+
+    @Test
+    void publicationRejectsDuplicateBundleIdsBeforeRegistryMutation() {
+        Identifier id = Identifier.of("cinefx_test", "dup_bundle");
+        EventProgramSpec spec = EventProgramSpec.starter(Identifier.of("cinefx_test", "dup_program"));
+        AssetBundle a = new AssetBundle(id, List.of(), List.of(), Map.of("v", "1"));
+        AssetBundle b = new AssetBundle(id, List.of(), List.of(), Map.of("v", "2"));
+        assertThrows(IllegalArgumentException.class, () -> new EventPublication(spec, List.of(a, b)));
+    }
+
+    @Test
+    void sceneReplaceNotifiesHotReloadSubscribersAndCanUnsubscribe() {
+        Identifier id = Identifier.of("cinefx_test", "scene_reload_" + Long.toUnsignedString(System.nanoTime()));
+        ArrayList<SceneDefinition> received = new ArrayList<>();
+        Runnable unsubscribe = CineFxApi.onReplace(received::add);
+        try {
+            SceneDefinition first = new SceneDefinition(id, 20, 0, false, List.of(), Map.of("revision", "1"));
+            SceneDefinition second = new SceneDefinition(id, 40, 2, true, List.of(), Map.of("revision", "2"));
+            CineFxApi.replace(first);
+            CineFxApi.replace(second);
+            assertEquals(List.of(first, second), received);
+            assertEquals(second, CineFxApi.find(id).orElseThrow());
+            unsubscribe.run();
+            CineFxApi.replace(first);
+            assertEquals(2, received.size(), "unsubscribed listener must not receive later replacements");
+        } finally {
+            unsubscribe.run();
         }
     }
 
