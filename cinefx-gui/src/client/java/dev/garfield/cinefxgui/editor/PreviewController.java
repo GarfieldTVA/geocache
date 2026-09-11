@@ -70,12 +70,25 @@ public final class PreviewController {
     }
 
     public void togglePlay(MinecraftClient client) {
+        if (project == null || client == null || client.world == null) return;
         if (playing) {
+            currentTick = clamp(client.world.getTime() - playStartGameTime, 0.0, Math.max(1.0, project.durationTicks));
             playing = false;
-            restartPreview(client, currentTick, false, true);
+            ensurePreview(client, false);
+            if (previewHandle != null) {
+                ClientCineFx.pause(previewHandle);
+                ClientCineFx.seek(previewHandle, currentTick);
+            }
         } else {
+            // Rebuild only the definition (not the scene instance) so audio-capable playback can be
+            // restored after paused editing without the visible stop/play hitch.
+            if (previewHandle == null) ensurePreview(client, true);
+            else refreshDefinition(client, true);
+            if (previewHandle != null) {
+                ClientCineFx.seek(previewHandle, currentTick);
+                ClientCineFx.resume(previewHandle);
+            }
             playing = true;
-            restartPreview(client, currentTick, true, false);
             resetPlayClock(client);
         }
     }
@@ -83,7 +96,11 @@ public final class PreviewController {
     public void stopAndRewind(MinecraftClient client) {
         playing = false;
         currentTick = 0.0;
-        restartPreview(client, currentTick, false, true);
+        ensurePreview(client, false);
+        if (previewHandle != null) {
+            ClientCineFx.seek(previewHandle, 0.0);
+            ClientCineFx.pause(previewHandle);
+        }
     }
 
     public void tick(MinecraftClient client) {
