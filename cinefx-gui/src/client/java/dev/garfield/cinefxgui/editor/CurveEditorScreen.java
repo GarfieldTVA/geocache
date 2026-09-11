@@ -219,7 +219,9 @@ public final class CurveEditorScreen extends Screen {
             double ta=channel.tick(index),tb=channel.tick(index+1),va=channel.value(index),vb=channel.value(index+1);
             double dt=Math.max(1.0e-6,tb-ta),dv=channel.angular()?shortest(vb-va):vb-va;
             double x = clamp((tickAt(click.x(),x1,x2)-ta)/dt,0,1);
-            double y = Math.abs(dv)<1.0e-9 ? current.y1() : (valueAt(click.y(),y1,y2)-va)/dv;
+            double y = Math.abs(dv)<1.0e-9
+                    ? (drag == Drag.HANDLE_OUT ? current.y1() : current.y2())
+                    : (valueAt(click.y(),y1,y2)-va)/dv;
             if (drag == Drag.HANDLE_OUT) channel.setBezier(a,new CubicBezier(x,y,current.x2(),current.y2()));
             else channel.setBezier(a,new CubicBezier(current.x1(),current.y1(),x,y));
         }
