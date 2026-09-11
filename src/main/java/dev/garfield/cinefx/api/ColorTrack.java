@@ -25,25 +25,20 @@ public final class ColorTrack {
         return of(Keyframe.at(0.0, argb));
     }
 
-    /** Immutable ordered keyframe view for tooling, serializers and editors. */
     public List<Keyframe<Integer>> keyframes() { return keys; }
 
     public int sample(double tick) {
         if (keys.size() == 1 || tick <= keys.getFirst().tick()) return keys.getFirst().value();
         if (tick >= keys.getLast().tick()) return keys.getLast().value();
-        int low = 0;
-        int high = keys.size() - 1;
+        int low = 0, high = keys.size() - 1;
         while (low + 1 < high) {
             int mid = (low + high) >>> 1;
-            if (keys.get(mid).tick() <= tick) low = mid;
-            else high = mid;
+            if (keys.get(mid).tick() <= tick) low = mid; else high = mid;
         }
-        Keyframe<Integer> a = keys.get(low);
-        Keyframe<Integer> b = keys.get(high);
+        Keyframe<Integer> a = keys.get(low), b = keys.get(high);
         double span = b.tick() - a.tick();
         double raw = span <= 0.0 ? 1.0 : (tick - a.tick()) / span;
-        double t = a.easingToNext().apply(raw);
-        return lerpArgb(a.value(), b.value(), t);
+        return lerpArgb(a.value(), b.value(), a.interpolate(raw));
     }
 
     private static int lerpArgb(int a, int b, double t) {
