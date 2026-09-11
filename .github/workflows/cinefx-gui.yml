@@ -2,7 +2,7 @@ name: CineFX GUI
 
 on:
   push:
-    branches: ["feature/cinefx-gui", "feature/cinefx-gui-audit"]
+    branches: ["feature/cinefx-gui", "feature/cinefx-gui-audit", "feature/cinefx-gui-complete"]
   pull_request:
     paths:
       - "cinefx-gui/**"
@@ -30,6 +30,8 @@ jobs:
           ./gradlew test --stacktrace
       - name: Publish CineFX API locally
         run: ./gradlew publishToMavenLocal --stacktrace
+      - name: Run CineFX GUI authoring regression tests
+        run: ./gradlew -p cinefx-gui test --stacktrace
       - name: Build standalone CineFX GUI mod
         run: ./gradlew -p cinefx-gui build --stacktrace
       - uses: actions/upload-artifact@v4
