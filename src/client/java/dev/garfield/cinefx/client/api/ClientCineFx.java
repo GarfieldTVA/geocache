@@ -29,6 +29,21 @@ public final class ClientCineFx {
     public static void stop(Identifier sceneId) { CineFxRuntime.INSTANCE.stop(sceneId); }
     public static void stopAll() { CineFxRuntime.INSTANCE.clear(); }
 
+    /** Freeze a running scene at its current scene-local tick. */
+    public static void pause(SceneHandle handle) {
+        if (handle != null) CineFxRuntime.INSTANCE.pause(handle.instanceId());
+    }
+
+    /** Freeze a running scene at an explicit scene-local tick without recreating the scene. */
+    public static void seek(SceneHandle handle, double localTick) {
+        if (handle != null) CineFxRuntime.INSTANCE.seek(handle.instanceId(), localTick);
+    }
+
+    /** Resume a paused/seeked scene from its exact frozen position. */
+    public static void resume(SceneHandle handle) {
+        if (handle != null) CineFxRuntime.INSTANCE.resume(handle.instanceId());
+    }
+
     public static void registerRenderer(Identifier type, CustomWorldRenderer renderer) {
         CineFxRuntime.INSTANCE.customRenderers().register(type, renderer);
     }
