@@ -1,6 +1,7 @@
 package dev.garfield.cinefxgui;
 
 import dev.garfield.cinefxgui.editor.CineFxStudioScreen;
+import dev.garfield.cinefxgui.editor.EventStudioRemotePublisher;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -14,6 +15,7 @@ public final class CineFxGuiClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        EventStudioRemotePublisher.initializeClient();
         openEditor = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.cinefx_gui.open_editor",
                 InputUtil.Type.KEYSYM,
