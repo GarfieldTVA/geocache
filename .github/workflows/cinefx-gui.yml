@@ -24,10 +24,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Publish CineFX API locally
+      - name: Run CineFX API regression tests
         run: |
           chmod +x ./gradlew
-          ./gradlew publishToMavenLocal --stacktrace
+          ./gradlew test --stacktrace
+      - name: Publish CineFX API locally
+        run: ./gradlew publishToMavenLocal --stacktrace
       - name: Build standalone CineFX GUI mod
         run: ./gradlew -p cinefx-gui build --stacktrace
       - uses: actions/upload-artifact@v4
