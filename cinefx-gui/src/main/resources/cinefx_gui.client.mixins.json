@@ -11,6 +11,7 @@
     "CineFxStudioOutlinerHierarchyMixin",
     "CineFxStudioTransformSpaceMixin",
     "CineFxStudioCurveEditorMixin",
+    "CineFxStudioEventEditorMixin",
     "AnimationJsonBezierMixin",
     "SceneManipulatorSamplingMixin",
     "SceneManipulatorHierarchyMixin",
