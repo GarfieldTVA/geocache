@@ -15,6 +15,7 @@
     "CineFxStudioDopeSheetMixin",
     "CineFxStudioAssetPickerMixin",
     "CineFxStudioEventEditorMixin",
+    "CineFxStudioUxMixin",
     "EventProgramEditorSafetyMixin",
     "AnimationJsonBezierMixin",
     "SceneManipulatorSamplingMixin",
