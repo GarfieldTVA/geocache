@@ -61,7 +61,7 @@ public final class Vec3Track {
         Keyframe<Vec3d> b = keys.get(high);
         double span = b.tick() - a.tick();
         double raw = span <= 0.0 ? 1.0 : (tick - a.tick()) / span;
-        double t = a.easingToNext().apply(raw);
+        double t = a.interpolate(raw);
         return angularDegrees ? lerpAngles(a.value(), b.value(), t) : lerp(a.value(), b.value(), t);
     }
 
