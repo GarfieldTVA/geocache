@@ -1,6 +1,7 @@
 package dev.garfield.cinefx.api;
 
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Vec3d;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -59,6 +60,21 @@ final class CineFxApiRegressionTest {
         assertEquals(255, (sampled >>> 16) & 255, "red must clamp to 255");
         assertEquals(0, (sampled >>> 8) & 255);
         assertEquals(0, sampled & 255);
+    }
+
+    @Test
+    void transformTrackKeepsDirectEulerTurnsWhileAngularVec3UsesShortestArc() {
+        TransformTrack legacyTransform = TransformTrack.of(
+                Keyframe.at(0.0, Transform.rotation(0.0, 0.0, 0.0)),
+                Keyframe.at(10.0, Transform.rotation(0.0, 360.0, 0.0)));
+        assertEquals(180.0, legacyTransform.sample(5.0).rotationDegrees().y, EPS,
+                "TransformTrack must preserve intentional full Euler turns");
+
+        Vec3Track angular = Vec3Track.angles(
+                Keyframe.at(0.0, new Vec3d(0.0, 350.0, 0.0)),
+                Keyframe.at(10.0, new Vec3d(0.0, 10.0, 0.0)));
+        assertEquals(360.0, angular.sample(5.0).y, EPS,
+                "angular Vec3Track should cross the shortest 20-degree arc");
     }
 
     @Test
