@@ -15,31 +15,46 @@ import java.util.Map;
 
 public final class ActiveScene {
     private final long instanceId;
-    private final SceneDefinition definition;
+    private SceneDefinition definition;
     private final SceneOptions options;
     private final long startGameTime;
-    private final List<SceneElement> allElementsByPriority;
-    private final TemporalIndex temporalIndex;
-    private final Map<String, BlockState> sampledBlocks;
+    private List<SceneElement> allElementsByPriority;
+    private TemporalIndex temporalIndex;
+    private Map<String, BlockState> sampledBlocks;
 
     ActiveScene(long instanceId, SceneDefinition definition, SceneOptions options, long startGameTime,
                 MinecraftClient client) {
         this.instanceId = instanceId;
-        this.definition = definition;
         this.options = options;
         this.startGameTime = startGameTime;
-        ArrayList<SceneElement> sorted = new ArrayList<>(definition.elements());
-        sorted.sort(Comparator.comparingInt(SceneElement::priority).reversed());
-        this.allElementsByPriority = List.copyOf(sorted);
-        this.temporalIndex = new TemporalIndex(allElementsByPriority, definition.durationTicks());
-        this.sampledBlocks = captureSampledBlocks(client);
+        installDefinition(definition, client);
     }
 
-    private Map<String, BlockState> captureSampledBlocks(MinecraftClient client) {
+    /**
+     * Replaces only the immutable definition backing this running instance. Timeline position,
+     * instance id and SceneOptions stay intact, so editor hot-reload does not restart audio/camera
+     * cues or jump the playhead back to zero.
+     */
+    void refreshDefinition(SceneDefinition replacement, MinecraftClient client) {
+        if (replacement == null || !definition.id().equals(replacement.id())) return;
+        installDefinition(replacement, client);
+    }
+
+    private void installDefinition(SceneDefinition next, MinecraftClient client) {
+        if (next == null) throw new IllegalArgumentException("definition is required");
+        this.definition = next;
+        ArrayList<SceneElement> sorted = new ArrayList<>(next.elements());
+        sorted.sort(Comparator.comparingInt(SceneElement::priority).reversed());
+        this.allElementsByPriority = List.copyOf(sorted);
+        this.temporalIndex = new TemporalIndex(allElementsByPriority, next.durationTicks());
+        this.sampledBlocks = captureSampledBlocks(client, next);
+    }
+
+    private Map<String, BlockState> captureSampledBlocks(MinecraftClient client, SceneDefinition source) {
         if (client.world == null) return Map.of();
         HashMap<String, BlockState> result = new HashMap<>();
         BlockPos anchorBlock = BlockPos.ofFloored(options.anchor());
-        for (SceneElement element : definition.elements()) {
+        for (SceneElement element : source.elements()) {
             if (element instanceof SceneElement.Block block && block.samplesWorld()) {
                 result.put(block.key(), client.world.getBlockState(anchorBlock.add(block.sampleOffset())));
             }
