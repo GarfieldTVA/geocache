@@ -100,6 +100,45 @@ final class CineFxApiRegressionTest {
     }
 
     @Test
+    void eventProgramsBridgeResolvesLatestPublishedSpecification() {
+        Identifier id = Identifier.of("cinefx_test", "runtime_" + Long.toUnsignedString(System.nanoTime()));
+        try {
+            EventProgramSpec.Registry.replace(EventProgramSpec.starter(id));
+            EventProgram program = EventPrograms.require(id);
+            assertEquals(id, program.id());
+            assertEquals("intro", program.initialPhase());
+
+            EventProgramSpec replacement = new EventProgramSpec(
+                    id,
+                    "live",
+                    List.of(new EventProgramSpec.PhaseSpec("live", List.of(), List.of(), List.of())),
+                    Map.of());
+            EventProgramSpec.Registry.replace(replacement);
+            assertEquals("live", EventPrograms.require(id).initialPhase(),
+                    "runtime helper must compile the latest hot-reloaded spec");
+        } finally {
+            EventProgramSpec.Registry.remove(id);
+        }
+    }
+
+    @Test
+    void assetBundleRegistrySupportsToolingHotReload() {
+        Identifier id = Identifier.of("cinefx_test", "assets_" + Long.toUnsignedString(System.nanoTime()));
+        try {
+            AssetBundle first = new AssetBundle(id, List.of(Identifier.of("cinefx_test", "first")), List.of(), Map.of("revision", "1"));
+            AssetBundle.Registry.replace(first);
+            assertEquals("1", AssetBundle.Registry.find(id).orElseThrow().metadata().get("revision"));
+
+            AssetBundle second = new AssetBundle(id, List.of(), List.of(Identifier.of("cinefx_test", "model/example.glb")), Map.of("revision", "2"));
+            AssetBundle.Registry.replace(second);
+            assertEquals(second, AssetBundle.Registry.find(id).orElseThrow());
+            assertEquals(second, AssetBundle.Registry.snapshot().get(id));
+        } finally {
+            AssetBundle.Registry.remove(id);
+        }
+    }
+
+    @Test
     void declarativeProgramRejectsTransitionToUnknownPhase() {
         Identifier id = Identifier.of("cinefx_test", "invalid_" + Long.toUnsignedString(System.nanoTime()));
         EventProgramSpec.PhaseSpec phase = new EventProgramSpec.PhaseSpec(
