@@ -120,18 +120,29 @@ public final class EditorModel {
     }
 
     public static final class History {
+        private static final long CHECKPOINT_COALESCE_NS = 120_000_000L;
+
         private final int maxEntries;
         private final Deque<String> undo = new ArrayDeque<>();
         private final Deque<String> redo = new ArrayDeque<>();
+        private long lastCheckpointNanos;
 
         public History(int maxEntries) { this.maxEntries = Math.max(8, maxEntries); }
 
+        /**
+         * Mouse drags and visual sliders can emit dozens of changes per second. Serializing the whole
+         * project for every one of those events caused avoidable frame stalls and filled undo history
+         * with near-identical states. Nearby checkpoints are intentionally coalesced into one gesture.
+         */
         public void checkpoint(Project project) {
+            long now = System.nanoTime();
+            if (!undo.isEmpty() && now - lastCheckpointNanos < CHECKPOINT_COALESCE_NS) return;
             String json = GSON.toJson(project);
             if (!undo.isEmpty() && undo.peekLast().equals(json)) return;
             undo.addLast(json);
             while (undo.size() > maxEntries) undo.removeFirst();
             redo.clear();
+            lastCheckpointNanos = now;
         }
 
         public Project undo(Project current) {
@@ -139,6 +150,7 @@ public final class EditorModel {
             redo.addLast(GSON.toJson(current));
             Project project = GSON.fromJson(undo.removeLast(), Project.class);
             project.dirty = true;
+            lastCheckpointNanos = 0L;
             return project;
         }
 
@@ -147,12 +159,13 @@ public final class EditorModel {
             undo.addLast(GSON.toJson(current));
             Project project = GSON.fromJson(redo.removeLast(), Project.class);
             project.dirty = true;
+            lastCheckpointNanos = 0L;
             return project;
         }
 
         public boolean canUndo() { return !undo.isEmpty(); }
         public boolean canRedo() { return !redo.isEmpty(); }
-        public void clear() { undo.clear(); redo.clear(); }
+        public void clear() { undo.clear(); redo.clear(); lastCheckpointNanos = 0L; }
     }
 
     public static JsonObject parseObject(String json) {
