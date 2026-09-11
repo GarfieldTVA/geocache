@@ -40,7 +40,7 @@ public final class ActiveScene {
     void refreshDefinition(SceneDefinition replacement, MinecraftClient client) {
         if (replacement == null || !definition.id().equals(replacement.id())) return;
         installDefinition(replacement, client);
-        if (fixedLocalTick != null) fixedLocalTick = normalizeLocalTick(fixedLocalTick);
+        if (fixedLocalTick != null && definition.looping()) fixedLocalTick = loopTick(fixedLocalTick);
     }
 
     /** Freeze this instance at its current runtime tick. */
@@ -50,7 +50,7 @@ public final class ActiveScene {
 
     /** Freeze this instance at an explicit scene-local tick. Useful for editor scrubbing. */
     void seek(double localTick) {
-        fixedLocalTick = normalizeLocalTick(localTick);
+        fixedLocalTick = seekTick(localTick);
     }
 
     /** Resume from the exact frozen/seeked position without restarting the scene instance. */
@@ -118,11 +118,16 @@ public final class ActiveScene {
     }
 
     private double localTickUnfrozen(double absoluteGameTick) {
-        return normalizeLocalTick(absoluteGameTick - startGameTime + timelineOffset);
+        double local = absoluteGameTick - startGameTime + timelineOffset;
+        return definition.looping() ? loopTick(local) : local;
     }
 
-    private double normalizeLocalTick(double local) {
-        if (!definition.looping()) return Math.max(0.0, Math.min(definition.durationTicks(), local));
+    private double seekTick(double local) {
+        if (definition.looping()) return loopTick(local);
+        return Math.max(0.0, Math.min(definition.durationTicks(), local));
+    }
+
+    private double loopTick(double local) {
         double duration = definition.durationTicks();
         double modulo = local % duration;
         return modulo < 0.0 ? modulo + duration : modulo;
