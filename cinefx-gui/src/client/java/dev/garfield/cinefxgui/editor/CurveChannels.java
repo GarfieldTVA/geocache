@@ -96,7 +96,8 @@ public final class CurveChannels {
             double t = bezier == null ? easing(a).apply(raw) : bezier.apply(raw);
             double av = value(a), bv = value(b);
             double delta = angular ? shortestDegrees(bv - av) : bv - av;
-            return av + delta * t;
+            double sampled = av + delta * t;
+            return colorShift >= 0 ? clamp(sampled, 0.0, 255.0) : sampled;
         }
 
         public void sort() {
@@ -108,17 +109,34 @@ public final class CurveChannels {
         }
 
         public double[] bounds() {
-            if (keys.isEmpty()) return new double[]{0, 20, -1, 1};
-            double minTick = Double.POSITIVE_INFINITY, maxTick = Double.NEGATIVE_INFINITY;
+            List<JsonObject> ordered = orderedKeys();
+            if (ordered.isEmpty()) return new double[]{0, 20, -1, 1};
+
+            double minTick = number(ordered.getFirst(), "tick", 0.0);
+            double maxTick = number(ordered.getLast(), "tick", minTick);
             double minValue = Double.POSITIVE_INFINITY, maxValue = Double.NEGATIVE_INFINITY;
-            for (JsonElement raw : keys) {
-                if (!raw.isJsonObject()) continue;
-                JsonObject key = raw.getAsJsonObject();
-                double tick = number(key,"tick",0), value = value(key);
-                minTick = Math.min(minTick, tick); maxTick = Math.max(maxTick, tick);
-                minValue = Math.min(minValue, value); maxValue = Math.max(maxValue, value);
+
+            for (JsonObject key : ordered) {
+                double value = value(key);
+                minValue = Math.min(minValue, value);
+                maxValue = Math.max(maxValue, value);
             }
-            if (!Double.isFinite(minTick)) return new double[]{0,20,-1,1};
+
+            // Include the actual eased curve between keys, not just endpoint values. This keeps
+            // Fit truthful for EASE_OUT_BACK and editable Bezier overshoot while matching color clamp.
+            for (int i = 0; i < ordered.size() - 1; i++) {
+                double a = number(ordered.get(i), "tick", 0.0);
+                double b = number(ordered.get(i + 1), "tick", a);
+                if (b <= a) continue;
+                for (int step = 1; step < 32; step++) {
+                    double tick = a + (b - a) * step / 32.0;
+                    double value = sample(tick);
+                    minValue = Math.min(minValue, value);
+                    maxValue = Math.max(maxValue, value);
+                }
+            }
+
+            if (!Double.isFinite(minValue) || !Double.isFinite(maxValue)) return new double[]{minTick, Math.max(minTick + 20, maxTick), -1, 1};
             if (maxTick - minTick < 1.0) { minTick -= 10; maxTick += 10; }
             if (maxValue - minValue < 1.0e-6) {
                 double pad = Math.max(1.0, Math.abs(minValue) * .15);
@@ -246,6 +264,7 @@ public final class CurveChannels {
         catch (RuntimeException ignored) { return Easing.LINEAR; }
     }
     private static double shortestDegrees(double value) { double v=value%360.0; if(v>=180)v-=360; if(v< -180)v+=360; return v; }
+    private static double clamp(double value, double min, double max) { return Math.max(min, Math.min(max, value)); }
     private static double number(JsonObject object,String key,double fallback){try{return object!=null&&object.has(key)?object.get(key).getAsDouble():fallback;}catch(RuntimeException ignored){return fallback;}}
     private static boolean bool(JsonObject object,String key,boolean fallback){try{return object!=null&&object.has(key)?object.get(key).getAsBoolean():fallback;}catch(RuntimeException ignored){return fallback;}}
     private static String text(JsonObject object,String key,String fallback){try{return object!=null&&object.has(key)?object.get(key).getAsString():fallback;}catch(RuntimeException ignored){return fallback;}}
