@@ -44,10 +44,14 @@ public final class ColorTrack {
     private static int lerpArgb(int a, int b, double t) {
         int aa = (a >>> 24) & 255, ar = (a >>> 16) & 255, ag = (a >>> 8) & 255, ab = a & 255;
         int ba = (b >>> 24) & 255, br = (b >>> 16) & 255, bg = (b >>> 8) & 255, bb = b & 255;
-        int oa = (int)Math.round(aa + (ba - aa) * t);
-        int or = (int)Math.round(ar + (br - ar) * t);
-        int og = (int)Math.round(ag + (bg - ag) * t);
-        int ob = (int)Math.round(ab + (bb - ab) * t);
+        int oa = channel(aa + (ba - aa) * t);
+        int or = channel(ar + (br - ar) * t);
+        int og = channel(ag + (bg - ag) * t);
+        int ob = channel(ab + (bb - ab) * t);
         return (oa << 24) | (or << 16) | (og << 8) | ob;
+    }
+
+    private static int channel(double value) {
+        return Math.max(0, Math.min(255, (int)Math.round(value)));
     }
 }
