@@ -63,4 +63,27 @@ public abstract class ViewportGizmoProjectionMixin {
         boolean visible = x >= left - 120 && x <= right + 120 && y >= top - 120 && y <= bottom + 120;
         cir.setReturnValue(new ViewportGizmo.ScreenPoint(x, y, depth, visible));
     }
+
+    @Inject(method = "planeMove", at = @At("HEAD"), cancellable = true)
+    private static void cinefxGui$planeMoveMatchesGameCamera(ViewportGizmo.Layout layout, Vec3d camera,
+                                                              float yaw, float pitch, double dx, double dy,
+                                                              boolean fine, boolean snap,
+                                                              CallbackInfoReturnable<Vec3d> cir) {
+        if (layout == null) {
+            cir.setReturnValue(Vec3d.ZERO);
+            return;
+        }
+        double ry = Math.toRadians(yaw), rp = Math.toRadians(pitch);
+        Vec3d forward = new Vec3d(-Math.sin(ry) * Math.cos(rp), -Math.sin(rp), Math.cos(ry) * Math.cos(rp));
+        Vec3d right = new Vec3d(-Math.cos(ry), 0, -Math.sin(ry));
+        Vec3d up = right.crossProduct(forward).normalize();
+        double worldPerPixel = layout.worldScale() / 70.0;
+        Vec3d delta = right.multiply(dx * worldPerPixel).add(up.multiply(-dy * worldPerPixel));
+        if (fine) delta = delta.multiply(0.2);
+        if (snap) delta = new Vec3d(
+                Math.round(delta.x / .25) * .25,
+                Math.round(delta.y / .25) * .25,
+                Math.round(delta.z / .25) * .25);
+        cir.setReturnValue(delta);
+    }
 }
