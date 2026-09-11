@@ -18,6 +18,7 @@
     "CineFxStudioEscapeMixin",
     "CineFxStudioWorldGuidesMixin",
     "CineFxStudioViewportFirstMixin",
+    "CineFxStudioIconAtlasMixin",
     "EventProgramEditorSafetyMixin",
     "AnimationJsonBezierMixin",
     "SceneManipulatorSamplingMixin",
