@@ -26,7 +26,9 @@ public final class CineFxRuntime {
     private final CinematicBackendRegistry cinematicBackends = new CinematicBackendRegistry();
     private final ArrayList<EventMarkerListener> markerListeners = new ArrayList<>();
 
-    private CineFxRuntime() { }
+    private CineFxRuntime() {
+        CineFxApi.onReplace(this::onSceneReplaced);
+    }
 
     public SceneHandle play(Identifier sceneId, SceneOptions options) {
         requireClientThread();
@@ -38,7 +40,7 @@ public final class CineFxRuntime {
         long id = ids.getAndIncrement();
         ActiveScene scene = new ActiveScene(id, definition, options, start, client);
         active.add(scene);
-        active.sort(Comparator.comparingInt((ActiveScene value) -> value.definition().priority()).reversed());
+        sortActive();
         return new SceneHandle(id, sceneId);
     }
 
@@ -83,6 +85,24 @@ public final class CineFxRuntime {
     public static double absoluteGameTick(MinecraftClient client) {
         if (client.world == null) return 0.0;
         return client.world.getTime() + client.getRenderTickCounter().getTickProgress(false);
+    }
+
+    private void onSceneReplaced(SceneDefinition replacement) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        Runnable refresh = () -> {
+            boolean changed = false;
+            for (ActiveScene scene : active) {
+                if (!scene.definition().id().equals(replacement.id())) continue;
+                scene.refreshDefinition(replacement, client);
+                changed = true;
+            }
+            if (changed) sortActive();
+        };
+        if (client.isOnThread()) refresh.run(); else client.execute(refresh);
+    }
+
+    private void sortActive() {
+        active.sort(Comparator.comparingInt((ActiveScene value) -> value.definition().priority()).reversed());
     }
 
     private static void requireClientThread() {
