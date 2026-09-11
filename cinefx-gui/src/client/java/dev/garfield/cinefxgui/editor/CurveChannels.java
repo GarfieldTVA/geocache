@@ -207,7 +207,10 @@ public final class CurveChannels {
 
     private static void addTransformChannels(List<Channel> out, String label, JsonArray keys) {
         addVecChannels(out, label + ".translation", keys, false, "value", "translation");
-        addVecChannels(out, label + ".rotation", keys, true, "value", "rotationDegrees");
+        // TransformTrack uses Transform.lerp(), so Euler components interpolate directly and may
+        // intentionally encode full turns such as 0 -> 360. AdvancedTransformTrack rotations are
+        // separate Vec3Track.angularDegrees channels and still use shortest-arc interpolation.
+        addVecChannels(out, label + ".rotation", keys, false, "value", "rotationDegrees");
         addVecChannels(out, label + ".scale", keys, false, "value", "scale");
     }
 
