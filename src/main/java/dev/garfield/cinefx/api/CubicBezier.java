@@ -26,6 +26,11 @@ public record CubicBezier(double x1, double y1, double x2, double y2) {
         if (x <= 0.0) return 0.0;
         if (x >= 1.0) return 1.0;
 
+        // If both control points lie on y=x, both cubic coordinates are identical for every t,
+        // so solving x(t) is unnecessary. This is common after converting a linear segment to
+        // editable Bezier handles and avoids iterative work on every runtime sample.
+        if (Double.compare(x1, y1) == 0 && Double.compare(x2, y2) == 0) return x;
+
         // Newton converges quickly for normal editor curves. Keep a bracket and fall back to
         // bisection around very flat handles so pathological but valid curves stay deterministic.
         double t = x;
