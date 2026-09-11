@@ -2,6 +2,7 @@ package dev.garfield.cinefxgui.mixin;
 
 import dev.garfield.cinefxgui.editor.EventAuthoringModel;
 import dev.garfield.cinefxgui.editor.EventProgramEditorScreen;
+import dev.garfield.cinefxgui.editor.EventStudioRemotePublisher;
 import dev.garfield.cinefxgui.editor.EventWorkspaceStore;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -12,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Construction guards and honest draft/publish behavior for Event Studio. */
+/** Construction guards and explicit draft/local/remote publish behavior for Event Studio. */
 @Mixin(value = EventProgramEditorScreen.class, remap = false)
 public abstract class EventProgramEditorSafetyMixin {
     @Shadow @Final private TextFieldWidget[] fields;
@@ -40,23 +41,35 @@ public abstract class EventProgramEditorSafetyMixin {
     @Inject(method = "publishWorkspace", at = @At("HEAD"), cancellable = true)
     private void cinefxGui$publishWithRuntimeScope(CallbackInfo ci) {
         try {
+            // Always keep the local editor/runtime registries in sync first. Validation is complete
+            // before mutation, so a rejected remote request still leaves a valid local preview.
             EventWorkspaceStore.validateAndPublish(workspace);
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.getServer() != null) {
-                // Integrated single-player/LAN server lives in the same JVM and therefore sees the
-                // same hot-reloaded EventProgramSpec/AssetBundle registries immediately.
                 status = "Published to integrated CineFX runtime";
+                statusUntil = System.currentTimeMillis() + 6000;
             } else if (client.getNetworkHandler() != null) {
-                // Never imply that a client-side editor silently rewrote a dedicated remote server.
-                // A future remote publish path must be an explicit, permission-checked C2S protocol.
-                status = "Published locally · remote server unchanged";
+                if (!EventStudioRemotePublisher.canPublishRemote()) {
+                    status = "Published locally · server has no CineFX authoring endpoint";
+                    statusUntil = System.currentTimeMillis() + 6000;
+                } else {
+                    status = "Publishing to remote CineFX server…";
+                    statusUntil = System.currentTimeMillis() + 10000;
+                    EventStudioRemotePublisher.publish(workspace, true, result -> {
+                        status = result.success()
+                                ? result.message()
+                                : "Remote publish rejected: " + result.message();
+                        statusUntil = System.currentTimeMillis() + 7000;
+                    });
+                }
             } else {
                 status = "Published to local CineFX registries";
+                statusUntil = System.currentTimeMillis() + 6000;
             }
         } catch (RuntimeException exception) {
             status = "Publish failed: " + compact(exception);
+            statusUntil = System.currentTimeMillis() + 6000;
         }
-        statusUntil = System.currentTimeMillis() + 6000;
         ci.cancel();
     }
 
@@ -64,6 +77,6 @@ public abstract class EventProgramEditorSafetyMixin {
         String message = exception.getMessage();
         return message == null || message.isBlank()
                 ? exception.getClass().getSimpleName()
-                : message.replace('\n', ' ');
+                : message.replace('\n', ' ').replace('\r', ' ');
     }
 }
