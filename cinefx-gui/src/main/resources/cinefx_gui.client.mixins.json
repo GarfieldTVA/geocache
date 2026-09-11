@@ -21,6 +21,7 @@
     "CineFxBridgeValidationMixin",
     "CineFxBridgeTrackEncodingMixin",
     "CineFxBridgeBezierMixin",
+    "CineFxBridgeBakedMotionBezierMixin",
     "ViewportGizmoProjectionMixin",
     "ViewportGizmoTransformSpaceMixin",
     "CineFxBridgeDefaultsMixin"
