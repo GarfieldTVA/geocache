@@ -43,6 +43,29 @@ final class EditorAuthoringRegressionTest {
     }
 
     @Test
+    void preExistingHierarchyCycleRemainsVisibleAndRepairable() {
+        EditorModel.Project project = new EditorModel.Project();
+        EditorModel.Element a = element("a");
+        EditorModel.Element b = element("b");
+        EditorModel.Element child = element("child");
+        HierarchyModel.setParent(a, b);
+        HierarchyModel.setParent(b, a);
+        HierarchyModel.setParent(child, a);
+        project.elements.addAll(List.of(a, b, child));
+
+        HierarchyModel.Tree tree = HierarchyModel.build(project, "");
+        assertTrue(tree.roots().containsAll(List.of(a, b)), "cycle members must be promoted so the outliner never becomes empty");
+        assertTrue(tree.brokenParents().containsAll(List.of(a, b)));
+        assertEquals(List.of(child), tree.children().get("a"), "non-cyclic descendants remain attached to a promoted cycle member");
+
+        HierarchyModel.setParent(a, null);
+        HierarchyModel.Tree repaired = HierarchyModel.build(project, "");
+        assertFalse(repaired.brokenParents().contains(a));
+        assertFalse(repaired.brokenParents().contains(b));
+        assertEquals(List.of(b), repaired.children().get("a"));
+    }
+
+    @Test
     void transformTrackDiscoversNineSharedNumericChannels() {
         EditorModel.Element element = element("animated");
         JsonObject track = new JsonObject();
