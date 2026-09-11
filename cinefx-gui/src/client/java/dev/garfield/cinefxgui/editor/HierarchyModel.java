@@ -34,9 +34,16 @@ public final class HierarchyModel {
         for (EditorModel.Element element : project.elements) {
             if (element == null) continue;
             String parent = parentKey(element);
-            if (parent.isBlank()) roots.add(element);
-            else if (byKey.containsKey(parent) && byKey.get(parent) != element) children.computeIfAbsent(parent, ignored -> new ArrayList<>()).add(element);
-            else { roots.add(element); broken.add(element); }
+            if (parent.isBlank()) {
+                roots.add(element);
+            } else if (!byKey.containsKey(parent) || byKey.get(parent) == element || isCycleMember(element, byKey)) {
+                // Keep malformed/cyclic nodes visible at the scene root. We deliberately do not add
+                // their invalid parent edge to children, otherwise the renderer could recurse forever.
+                roots.add(element);
+                broken.add(element);
+            } else {
+                children.computeIfAbsent(parent, ignored -> new ArrayList<>()).add(element);
+            }
         }
 
         String search = normalize(rawSearch);
@@ -77,6 +84,19 @@ public final class HierarchyModel {
             EditorModel.Element element = byKey.get(cursor);
             if (element == null) break;
             cursor = parentKey(element);
+        }
+        return false;
+    }
+
+    private static boolean isCycleMember(EditorModel.Element start, Map<String, EditorModel.Element> byKey) {
+        String startKey = start.key();
+        String cursor = parentKey(start);
+        HashSet<String> seen = new HashSet<>();
+        while (!cursor.isBlank() && seen.add(cursor)) {
+            if (cursor.equals(startKey)) return true;
+            EditorModel.Element next = byKey.get(cursor);
+            if (next == null) return false;
+            cursor = parentKey(next);
         }
         return false;
     }
