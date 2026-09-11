@@ -35,4 +35,7 @@ public interface CineFxStudioAccessMixin {
     @Invoker("toast") void cinefxGui$toast(String message);
     @Invoker("loadPreset") void cinefxGui$loadPreset(String name);
     @Invoker("fitTimeline") void cinefxGui$fitTimeline();
+    @Invoker("focusSelected") void cinefxGui$focusSelected();
+    @Invoker("duplicateSelected") void cinefxGui$duplicateSelected();
+    @Invoker("deleteSelected") void cinefxGui$deleteSelected();
 }
