@@ -12,8 +12,8 @@ on:
       - "gradle.properties"
 
 concurrency:
-  group: cinefx-gui-${{ github.ref }}
-  cancel-in-progress: true
+  group: cinefx-gui-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   build:
