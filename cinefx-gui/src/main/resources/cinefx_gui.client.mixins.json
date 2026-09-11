@@ -12,6 +12,7 @@
     "CineFxStudioTransformSpaceMixin",
     "CineFxStudioCurveEditorMixin",
     "CineFxStudioEventEditorMixin",
+    "EventProgramEditorSafetyMixin",
     "AnimationJsonBezierMixin",
     "SceneManipulatorSamplingMixin",
     "SceneManipulatorHierarchyMixin",
