@@ -54,6 +54,24 @@ public final class CineFxRuntime {
         active.removeIf(scene -> scene.definition().id().equals(sceneId));
     }
 
+    public void pause(long instanceId) {
+        requireClientThread();
+        ActiveScene scene = find(instanceId);
+        if (scene != null) scene.pause(absoluteGameTick(MinecraftClient.getInstance()));
+    }
+
+    public void seek(long instanceId, double localTick) {
+        requireClientThread();
+        ActiveScene scene = find(instanceId);
+        if (scene != null) scene.seek(localTick);
+    }
+
+    public void resume(long instanceId) {
+        requireClientThread();
+        ActiveScene scene = find(instanceId);
+        if (scene != null) scene.resume(absoluteGameTick(MinecraftClient.getInstance()));
+    }
+
     public void clear() { active.clear(); }
 
     /** Snapshot is tiny (active scenes, not individual blocks) and prevents mutation during callbacks. */
@@ -85,6 +103,11 @@ public final class CineFxRuntime {
     public static double absoluteGameTick(MinecraftClient client) {
         if (client.world == null) return 0.0;
         return client.world.getTime() + client.getRenderTickCounter().getTickProgress(false);
+    }
+
+    private ActiveScene find(long instanceId) {
+        for (ActiveScene scene : active) if (scene.instanceId() == instanceId) return scene;
+        return null;
     }
 
     private void onSceneReplaced(SceneDefinition replacement) {
