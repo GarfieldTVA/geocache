@@ -39,4 +39,8 @@ public interface CineFxStudioAccessMixin {
     @Invoker("duplicateSelected") void cinefxGui$duplicateSelected();
     @Invoker("deleteSelected") void cinefxGui$deleteSelected();
     @Invoker("addHit") void cinefxGui$addHit(int x1, int y1, int x2, int y2, Runnable action);
+    @Invoker("createCameraFromView") void cinefxGui$createCameraFromView();
+    @Invoker("addKeyframesAtPlayhead") void cinefxGui$addKeyframesAtPlayhead();
+    @Invoker("saveProject") void cinefxGui$saveProject();
+    @Invoker("validateProject") void cinefxGui$validateProject();
 }
