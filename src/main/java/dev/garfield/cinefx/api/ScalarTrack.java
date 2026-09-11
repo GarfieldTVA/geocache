@@ -42,7 +42,7 @@ public final class ScalarTrack {
         Keyframe<Double> b = keys.get(high);
         double span = b.tick() - a.tick();
         double raw = span <= 0.0 ? 1.0 : (tick - a.tick()) / span;
-        double t = a.easingToNext().apply(raw);
+        double t = a.interpolate(raw);
         return a.value() + (b.value() - a.value()) * t;
     }
 }
