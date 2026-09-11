@@ -62,7 +62,8 @@ final class EditorAuthoringRegressionTest {
         HierarchyModel.Tree repaired = HierarchyModel.build(project, "");
         assertFalse(repaired.brokenParents().contains(a));
         assertFalse(repaired.brokenParents().contains(b));
-        assertEquals(List.of(b), repaired.children().get("a"));
+        assertEquals(List.of(b, child), repaired.children().get("a"),
+                "repairing the cycle must keep unrelated descendants attached to their original parent");
     }
 
     @Test
