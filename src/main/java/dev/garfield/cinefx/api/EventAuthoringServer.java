@@ -4,6 +4,7 @@ import dev.garfield.cinefx.network.PublishEventPublicationPayload;
 import dev.garfield.cinefx.network.PublishEventPublicationResultPayload;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 import java.util.HashMap;
@@ -11,9 +12,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Explicit authoring endpoint used by CineFX editor tooling on dedicated servers. Only command-level
- * operators may publish, payloads are size-limited by their codec, and the complete publication is
- * decoded/validated before either registry changes.
+ * Explicit authoring endpoint used by CineFX editor tooling on dedicated servers. Only gamemaster
+ * (legacy command level 2) or stronger command sources may publish. Payloads are size-limited by
+ * their codec, and the complete publication is decoded/validated before either registry changes.
  */
 public final class EventAuthoringServer {
     private static final long MIN_INTERVAL_MS = 250L;
@@ -31,8 +32,8 @@ public final class EventAuthoringServer {
 
     private static void handle(MinecraftServer server, ServerPlayerEntity player, PublishEventPublicationPayload payload) {
         if (player == null) return;
-        if (!player.hasPermissionLevel(2)) {
-            reply(player, payload.requestId(), false, "Remote CineFX authoring requires operator permission", 0);
+        if (!CommandManager.requirePermissionLevel(CommandManager.GAMEMASTERS_CHECK).test(player.getCommandSource())) {
+            reply(player, payload.requestId(), false, "Remote CineFX authoring requires gamemaster/operator permission", 0);
             return;
         }
         long now = System.currentTimeMillis();
