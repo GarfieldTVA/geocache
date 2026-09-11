@@ -18,6 +18,8 @@ public final class ActiveScene {
     private SceneDefinition definition;
     private final SceneOptions options;
     private final long startGameTime;
+    private double timelineOffset;
+    private Double fixedLocalTick;
     private List<SceneElement> allElementsByPriority;
     private TemporalIndex temporalIndex;
     private Map<String, BlockState> sampledBlocks;
@@ -38,7 +40,27 @@ public final class ActiveScene {
     void refreshDefinition(SceneDefinition replacement, MinecraftClient client) {
         if (replacement == null || !definition.id().equals(replacement.id())) return;
         installDefinition(replacement, client);
+        if (fixedLocalTick != null) fixedLocalTick = normalizeLocalTick(fixedLocalTick);
     }
+
+    /** Freeze this instance at its current runtime tick. */
+    void pause(double absoluteGameTick) {
+        if (fixedLocalTick == null) fixedLocalTick = localTickUnfrozen(absoluteGameTick);
+    }
+
+    /** Freeze this instance at an explicit scene-local tick. Useful for editor scrubbing. */
+    void seek(double localTick) {
+        fixedLocalTick = normalizeLocalTick(localTick);
+    }
+
+    /** Resume from the exact frozen/seeked position without restarting the scene instance. */
+    void resume(double absoluteGameTick) {
+        if (fixedLocalTick == null) return;
+        timelineOffset = fixedLocalTick - (absoluteGameTick - startGameTime);
+        fixedLocalTick = null;
+    }
+
+    boolean paused() { return fixedLocalTick != null; }
 
     private void installDefinition(SceneDefinition next, MinecraftClient client) {
         if (next == null) throw new IllegalArgumentException("definition is required");
@@ -91,15 +113,24 @@ public final class ActiveScene {
     public BlockState sampledBlock(String elementKey) { return sampledBlocks.get(elementKey); }
 
     public double localTick(double absoluteGameTick) {
-        double local = absoluteGameTick - startGameTime;
-        if (!definition.looping()) return local;
+        if (fixedLocalTick != null) return fixedLocalTick;
+        return localTickUnfrozen(absoluteGameTick);
+    }
+
+    private double localTickUnfrozen(double absoluteGameTick) {
+        return normalizeLocalTick(absoluteGameTick - startGameTime + timelineOffset);
+    }
+
+    private double normalizeLocalTick(double local) {
+        if (!definition.looping()) return Math.max(0.0, Math.min(definition.durationTicks(), local));
         double duration = definition.durationTicks();
         double modulo = local % duration;
         return modulo < 0.0 ? modulo + duration : modulo;
     }
 
     public boolean completed(double absoluteGameTick) {
-        return !definition.looping() && absoluteGameTick - startGameTime > definition.durationTicks();
+        if (fixedLocalTick != null || definition.looping()) return false;
+        return absoluteGameTick - startGameTime + timelineOffset > definition.durationTicks();
     }
 
     /** Compact fixed-bucket interval index. Bucket count is capped for very long scenes. */
