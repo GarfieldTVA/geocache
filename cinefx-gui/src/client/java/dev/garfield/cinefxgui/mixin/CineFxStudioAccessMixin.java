@@ -38,4 +38,5 @@ public interface CineFxStudioAccessMixin {
     @Invoker("focusSelected") void cinefxGui$focusSelected();
     @Invoker("duplicateSelected") void cinefxGui$duplicateSelected();
     @Invoker("deleteSelected") void cinefxGui$deleteSelected();
+    @Invoker("addHit") void cinefxGui$addHit(int x1, int y1, int x2, int y2, Runnable action);
 }
