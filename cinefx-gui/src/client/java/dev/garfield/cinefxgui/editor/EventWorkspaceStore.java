@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import dev.garfield.cinefx.api.AssetBundle;
 import dev.garfield.cinefx.api.EventProgramSpec;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.util.Identifier;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /** Disk store for visual EventProgramSpec + AssetBundle workspaces. */
@@ -34,9 +36,9 @@ public final class EventWorkspaceStore {
         } catch (IOException ignored) { return List.of(); }
     }
 
+    /** Saves the authoring draft even while it is temporarily invalid. Publishing is separate. */
     public static Path save(EventAuthoringModel.Workspace workspace, String requestedName) throws IOException {
         normalize(workspace);
-        validateAndPublish(workspace);
         String safe = sanitize(requestedName == null || requestedName.isBlank() ? workspace.name : requestedName);
         if (safe.isBlank()) safe = "event";
         Path target = ROOT.resolve(safe + ".json");
@@ -73,15 +75,21 @@ public final class EventWorkspaceStore {
         } catch (Exception ignored) { return null; }
     }
 
+    /** Validates everything first and only then mutates the hot-reload registries. */
     public static void validateAndPublish(EventAuthoringModel.Workspace workspace) {
         normalize(workspace);
+        List<String> errors = validate(workspace);
+        if (!errors.isEmpty()) throw new IllegalArgumentException(errors.getFirst());
+
         EventProgramSpec spec = workspace.program.compile();
-        spec.compile();
-        EventProgramSpec.Registry.replace(spec);
+        ArrayList<AssetBundle> compiledBundles = new ArrayList<>();
         for (EventAuthoringModel.Bundle draft : workspace.bundles) {
             if (draft == null || draft.id == null || draft.id.isBlank()) continue;
-            AssetBundle.Registry.replace(draft.compile());
+            compiledBundles.add(draft.compile());
         }
+
+        EventProgramSpec.Registry.replace(spec);
+        for (AssetBundle bundle : compiledBundles) AssetBundle.Registry.replace(bundle);
     }
 
     public static List<String> validate(EventAuthoringModel.Workspace workspace) {
@@ -89,12 +97,18 @@ public final class EventWorkspaceStore {
         if (workspace == null) return List.of("Workspace is null");
         try { workspace.program.compile().compile(); }
         catch (RuntimeException exception) { errors.add("Program: " + compact(exception.getMessage())); }
+
+        HashSet<Identifier> bundleIds = new HashSet<>();
         if (workspace.bundles != null) {
             for (int i = 0; i < workspace.bundles.size(); i++) {
                 EventAuthoringModel.Bundle bundle = workspace.bundles.get(i);
                 if (bundle == null) { errors.add("Bundle " + i + ": null"); continue; }
-                try { bundle.compile(); }
-                catch (RuntimeException exception) { errors.add("Bundle " + (i + 1) + ": " + compact(exception.getMessage())); }
+                try {
+                    AssetBundle compiled = bundle.compile();
+                    if (!bundleIds.add(compiled.id())) errors.add("Bundle " + (i + 1) + ": duplicate id " + compiled.id());
+                } catch (RuntimeException exception) {
+                    errors.add("Bundle " + (i + 1) + ": " + compact(exception.getMessage()));
+                }
             }
         }
         return List.copyOf(errors);
