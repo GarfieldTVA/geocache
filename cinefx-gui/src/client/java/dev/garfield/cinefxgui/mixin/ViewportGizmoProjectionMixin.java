@@ -26,8 +26,11 @@ public abstract class ViewportGizmoProjectionMixin {
         Vec3d rel = world.subtract(camera);
         double ry = Math.toRadians(yaw), rp = Math.toRadians(pitch);
         Vec3d forward = new Vec3d(-Math.sin(ry) * Math.cos(rp), -Math.sin(rp), Math.cos(ry) * Math.cos(rp));
-        Vec3d screenRight = new Vec3d(Math.cos(ry), 0, Math.sin(ry));
-        Vec3d screenUp = forward.crossProduct(screenRight).normalize();
+
+        // Minecraft yaw 0 looks toward +Z, where camera-right is -X. The old +X basis mirrored
+        // horizontal projection and made the overlay disagree with what the player actually saw.
+        Vec3d screenRight = new Vec3d(-Math.cos(ry), 0, -Math.sin(ry));
+        Vec3d screenUp = screenRight.crossProduct(forward).normalize();
         double depth = rel.dotProduct(forward);
         if (depth <= 0.03) {
             cir.setReturnValue(new ViewportGizmo.ScreenPoint(0, 0, depth, false));
