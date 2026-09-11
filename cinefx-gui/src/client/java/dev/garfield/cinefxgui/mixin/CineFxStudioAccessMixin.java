@@ -43,4 +43,5 @@ public interface CineFxStudioAccessMixin {
     @Invoker("addKeyframesAtPlayhead") void cinefxGui$addKeyframesAtPlayhead();
     @Invoker("saveProject") void cinefxGui$saveProject();
     @Invoker("validateProject") void cinefxGui$validateProject();
+    @Invoker("onEditorTextChanged") void cinefxGui$onEditorTextChanged(String text);
 }
