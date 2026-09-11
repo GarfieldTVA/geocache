@@ -21,10 +21,11 @@ import java.util.Set;
 
 /**
  * Editor-side mirror of CineFxSceneGraphBridge's transform composition. It exists so viewport
- * markers, focus and animation paths match the actual parent/child runtime graph instead of only
- * showing an element's local offset.
+ * markers, focus, animation paths and manipulators match the actual parent/child runtime graph.
  */
 public final class HierarchyJson {
+    public record Axes(Vec3d x, Vec3d y, Vec3d z) { }
+
     private static volatile EditorModel.Project currentProject;
 
     private HierarchyJson() { }
@@ -34,13 +35,58 @@ public final class HierarchyJson {
 
     /** Returns the runtime-equivalent world position relative to the scene anchor. */
     public static Vec3d worldRelativePivot(EditorModel.Project project, EditorModel.Element element, double sceneTick) {
+        Matrix4f matrix = worldMatrix(project, element, sceneTick);
+        if (matrix == null) return null;
+        Vec3d world = point(matrix, Vec3d.ZERO);
+        return world.subtract(project.anchor());
+    }
+
+    /** Full runtime-equivalent world matrix at a scene tick. */
+    public static Matrix4f worldMatrix(EditorModel.Project project, EditorModel.Element element, double sceneTick) {
         if (project == null || element == null || !isTransformable(element)) return null;
         Map<String, EditorModel.Element> graph = activeGraph(project, sceneTick);
         EditorModel.Element active = graph.get(element.key());
         if (active == null) return null;
-        Matrix4f matrix = resolve(project, active, graph, new HashMap<>(), new HashSet<>(), sceneTick);
-        Vec3d world = point(matrix, Vec3d.ZERO);
-        return world.subtract(project.anchor());
+        return new Matrix4f(resolve(project, active, graph, new HashMap<>(), new HashSet<>(), sceneTick));
+    }
+
+    /** Matrix inherited by the element before its own local transform is applied. */
+    public static Matrix4f parentWorldMatrix(EditorModel.Project project, EditorModel.Element element, double sceneTick) {
+        if (project == null || element == null || !isTransformable(element)) return null;
+        Map<String, EditorModel.Element> graph = activeGraph(project, sceneTick);
+        String parentKey = string(element.data, "parentKey", "").trim();
+        EditorModel.Element parent = parentKey.isBlank() ? null : graph.get(parentKey);
+        if (parent == null) return root(project);
+        return new Matrix4f(resolve(project, parent, graph, new HashMap<>(), new HashSet<>(), sceneTick));
+    }
+
+    /** Normalized object axes in world space. Negative scale intentionally flips the corresponding axis. */
+    public static Axes worldAxes(EditorModel.Project project, EditorModel.Element element, double sceneTick) {
+        Matrix4f matrix = worldMatrix(project, element, sceneTick);
+        if (matrix == null) return new Axes(new Vec3d(1, 0, 0), new Vec3d(0, 1, 0), new Vec3d(0, 0, 1));
+        return new Axes(
+                normalize(new Vec3d(matrix.m00(), matrix.m01(), matrix.m02()), new Vec3d(1, 0, 0)),
+                normalize(new Vec3d(matrix.m10(), matrix.m11(), matrix.m12()), new Vec3d(0, 1, 0)),
+                normalize(new Vec3d(matrix.m20(), matrix.m21(), matrix.m22()), new Vec3d(0, 0, 1)));
+    }
+
+    /** Converts a world-space displacement into the local translation space inherited from the parent. */
+    public static Vec3d worldDirectionToParentLocal(EditorModel.Project project, EditorModel.Element element,
+                                                     double sceneTick, Vec3d worldDirection) {
+        if (worldDirection == null) return Vec3d.ZERO;
+        Matrix4f parent = parentWorldMatrix(project, element, sceneTick);
+        if (parent == null) return worldDirection;
+        Matrix4f inverse;
+        try { inverse = new Matrix4f(parent).invert(); }
+        catch (RuntimeException ignored) { return worldDirection; }
+        return direction(inverse, worldDirection);
+    }
+
+    /** Analytic/baked MotionCurve transform at this element's local time. */
+    public static Transform localMotion(EditorModel.Project project, EditorModel.Element element, double sceneTick) {
+        if (project == null || element == null || element.data == null) return Transform.IDENTITY;
+        double localTick = Math.max(0.0, sceneTick - element.startTick());
+        return sampleMotion(object(element.data.get("motion")), localTick, project.seed);
     }
 
     /** Samples the full resolved hierarchy, so a child path also follows an animated parent. */
@@ -58,6 +104,12 @@ public final class HierarchyJson {
             if (point != null) out.add(point);
         }
         return List.copyOf(out);
+    }
+
+    public static boolean isTransformable(EditorModel.Element element) {
+        if (element == null || element.apiClass == null || element.apiClass.isBlank()) return false;
+        try { return ComplexElement.Transformable.class.isAssignableFrom(Class.forName(element.apiClass)); }
+        catch (ReflectiveOperationException ignored) { return false; }
     }
 
     private static Map<String, EditorModel.Element> activeGraph(EditorModel.Project project, double sceneTick) {
@@ -173,17 +225,23 @@ public final class HierarchyJson {
                 vector(value.get("scale"), new Vec3d(1, 1, 1)));
     }
 
-    private static boolean isTransformable(EditorModel.Element element) {
-        if (element.apiClass == null || element.apiClass.isBlank()) return false;
-        try { return ComplexElement.Transformable.class.isAssignableFrom(Class.forName(element.apiClass)); }
-        catch (ReflectiveOperationException ignored) { return false; }
-    }
-
     private static Vec3d point(Matrix4fc matrix, Vec3d local) {
         double x = matrix.m00() * local.x + matrix.m10() * local.y + matrix.m20() * local.z + matrix.m30();
         double y = matrix.m01() * local.x + matrix.m11() * local.y + matrix.m21() * local.z + matrix.m31();
         double z = matrix.m02() * local.x + matrix.m12() * local.y + matrix.m22() * local.z + matrix.m32();
         return new Vec3d(x, y, z);
+    }
+
+    private static Vec3d direction(Matrix4fc matrix, Vec3d local) {
+        double x = matrix.m00() * local.x + matrix.m10() * local.y + matrix.m20() * local.z;
+        double y = matrix.m01() * local.x + matrix.m11() * local.y + matrix.m21() * local.z;
+        double z = matrix.m02() * local.x + matrix.m12() * local.y + matrix.m22() * local.z;
+        return new Vec3d(x, y, z);
+    }
+
+    private static Vec3d normalize(Vec3d value, Vec3d fallback) {
+        if (value == null || value.lengthSquared() < 1.0e-12) return fallback;
+        return value.normalize();
     }
 
     private static JsonObject object(JsonElement value) { return value != null && value.isJsonObject() ? value.getAsJsonObject() : null; }
