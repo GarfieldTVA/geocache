@@ -73,7 +73,10 @@ public final class AnimationJson {
         double t = easedFraction(a, b, tick);
         JsonObject out = av.deepCopy();
         out.add("translation", vec(lerp(vec(av.getAsJsonObject("translation"), Vec3d.ZERO), vec(bv.getAsJsonObject("translation"), Vec3d.ZERO), t)));
-        out.add("rotationDegrees", vec(lerpAngles(vec(av.getAsJsonObject("rotationDegrees"), Vec3d.ZERO), vec(bv.getAsJsonObject("rotationDegrees"), Vec3d.ZERO), t)));
+        // Legacy TransformTrack delegates to Transform.lerp(), which interpolates Euler components
+        // directly. Keep editor-side insertion/preview identical; shortest-angle semantics belong
+        // only to Vec3Track.angularDegrees (used by AdvancedTransformTrack rotation channels).
+        out.add("rotationDegrees", vec(lerp(vec(av.getAsJsonObject("rotationDegrees"), Vec3d.ZERO), vec(bv.getAsJsonObject("rotationDegrees"), Vec3d.ZERO), t)));
         out.add("scale", vec(lerp(vec(av.getAsJsonObject("scale"), new Vec3d(1, 1, 1)), vec(bv.getAsJsonObject("scale"), new Vec3d(1, 1, 1)), t)));
         return out;
     }
