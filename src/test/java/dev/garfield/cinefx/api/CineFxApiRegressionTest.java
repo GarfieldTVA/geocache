@@ -123,6 +123,22 @@ final class CineFxApiRegressionTest {
     }
 
     @Test
+    void eventRefreshKeepsExistingPhaseAndFallsBackOnlyWhenRemoved() {
+        Identifier id = Identifier.of("cinefx_test", "refresh_phase");
+        EventProgram.Phase intro = new EventProgram.Phase("intro", List.of(), List.of(), List.of());
+        EventProgram.Phase live = new EventProgram.Phase("live", List.of(), List.of(), List.of());
+        EventProgram preserving = new EventProgram(id, "intro", Map.of("intro", intro, "live", live), Map.of());
+        assertEquals("live", EventDirector.phaseAfterRefresh(preserving, "live"),
+                "a live phase that still exists must keep its elapsed clock and state");
+
+        EventProgram.Phase reset = new EventProgram.Phase("reset", List.of(), List.of(), List.of());
+        EventProgram removing = new EventProgram(id, "reset", Map.of("reset", reset), Map.of());
+        assertEquals("reset", EventDirector.phaseAfterRefresh(removing, "live"),
+                "removing the current phase must fall back to the replacement initial phase");
+        assertEquals("reset", EventDirector.phaseAfterRefresh(removing, null));
+    }
+
+    @Test
     void assetBundleRegistrySupportsToolingHotReload() {
         Identifier id = Identifier.of("cinefx_test", "assets_" + Long.toUnsignedString(System.nanoTime()));
         try {
