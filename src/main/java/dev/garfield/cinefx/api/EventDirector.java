@@ -140,6 +140,31 @@ public final class EventDirector {
         return List.copyOf(result);
     }
 
+    /**
+     * Swaps a compiled program into all matching live sessions without changing their session id,
+     * audience, variables, preload state or active scene start times. If an edited program removed the
+     * current phase, the session falls back to the replacement initial phase with a fresh phase clock.
+     * No enter/exit actions are replayed during the rebind, so authoring refresh cannot duplicate side effects.
+     */
+    public int rebindProgram(MinecraftServer server, EventProgram replacement) {
+        if (server == null) throw new IllegalArgumentException("server is required");
+        if (replacement == null) throw new IllegalArgumentException("replacement is required");
+        int refreshed = 0;
+        for (Session session : sessions.values()) {
+            if (!replacement.id().equals(session.program.id())) continue;
+            session.rebindProgram(replacement, server.getWorld(session.worldKey));
+            refreshed++;
+        }
+        return refreshed;
+    }
+
+    static String phaseAfterRefresh(EventProgram replacement, String currentPhase) {
+        if (replacement == null) throw new IllegalArgumentException("replacement is required");
+        return currentPhase != null && replacement.phases().containsKey(currentPhase)
+                ? currentPhase
+                : replacement.initialPhase();
+    }
+
     public void resync(ServerPlayerEntity player) {
         if (player == null) return;
         for (Session session : sessions.values()) {
@@ -214,7 +239,7 @@ public final class EventDirector {
 
     private final class Session {
         final long id;
-        final EventProgram program;
+        EventProgram program;
         final RegistryKey<World> worldKey;
         final Vec3d anchor;
         final double audienceRadius;
@@ -241,6 +266,18 @@ public final class EventDirector {
             this.variables.putAll(variables);
             this.phaseId = program.initialPhase();
             this.phaseStartedAt = now;
+        }
+
+        void rebindProgram(EventProgram replacement, ServerWorld world) {
+            if (!program.id().equals(replacement.id())) throw new IllegalArgumentException("Program id mismatch");
+            String nextPhase = phaseAfterRefresh(replacement, phaseId);
+            boolean fellBack = !nextPhase.equals(phaseId);
+            program = replacement;
+            phaseId = nextPhase;
+            if (fellBack) {
+                pausedPhaseTicks = 0L;
+                if (world != null) phaseStartedAt = world.getTime();
+            }
         }
 
         void syncAudience(MinecraftServer server, ServerWorld world) {
