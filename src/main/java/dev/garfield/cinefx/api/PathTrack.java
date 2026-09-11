@@ -18,7 +18,8 @@ public final class PathTrack {
             Vec3d position,
             Vec3d inHandle,
             Vec3d outHandle,
-            Easing easingToNext
+            Easing easingToNext,
+            CubicBezier bezierToNext
     ) {
         public Point {
             if (!Double.isFinite(tick)) throw new IllegalArgumentException("tick must be finite");
@@ -26,16 +27,28 @@ public final class PathTrack {
             easingToNext = easingToNext == null ? Easing.LINEAR : easingToNext;
         }
 
+        public Point(double tick, Vec3d position, Vec3d inHandle, Vec3d outHandle, Easing easingToNext) {
+            this(tick, position, inHandle, outHandle, easingToNext, null);
+        }
+
         public static Point at(double tick, Vec3d position) {
-            return new Point(tick, position, null, null, Easing.LINEAR);
+            return new Point(tick, position, null, null, Easing.LINEAR, null);
         }
 
         public static Point at(double tick, Vec3d position, Easing easing) {
-            return new Point(tick, position, null, null, easing);
+            return new Point(tick, position, null, null, easing, null);
         }
 
         public static Point bezier(double tick, Vec3d position, Vec3d inHandle, Vec3d outHandle, Easing easing) {
-            return new Point(tick, position, inHandle, outHandle, easing);
+            return new Point(tick, position, inHandle, outHandle, easing, null);
+        }
+
+        public static Point bezierTiming(double tick, Vec3d position, Vec3d inHandle, Vec3d outHandle, CubicBezier curve) {
+            return new Point(tick, position, inHandle, outHandle, Easing.LINEAR, curve);
+        }
+
+        public double interpolate(double rawFraction) {
+            return bezierToNext == null ? easingToNext.apply(rawFraction) : bezierToNext.apply(rawFraction);
         }
     }
 
@@ -49,25 +62,15 @@ public final class PathTrack {
         ArrayList<Point> sorted = new ArrayList<>(points);
         sorted.sort(Comparator.comparingDouble(Point::tick));
         for (int i = 1; i < sorted.size(); i++) {
-            if (sorted.get(i).tick() <= sorted.get(i - 1).tick()) {
-                throw new IllegalArgumentException("Path ticks must be strictly increasing");
-            }
+            if (sorted.get(i).tick() <= sorted.get(i - 1).tick()) throw new IllegalArgumentException("Path ticks must be strictly increasing");
         }
         this.points = List.copyOf(sorted);
         this.interpolation = interpolation == null ? Interpolation.CATMULL_ROM : interpolation;
     }
 
-    public static PathTrack catmullRom(Point... points) {
-        return new PathTrack(List.of(points), Interpolation.CATMULL_ROM);
-    }
-
-    public static PathTrack bezier(Point... points) {
-        return new PathTrack(List.of(points), Interpolation.BEZIER);
-    }
-
-    public static PathTrack linear(Point... points) {
-        return new PathTrack(List.of(points), Interpolation.LINEAR);
-    }
+    public static PathTrack catmullRom(Point... points) { return new PathTrack(List.of(points), Interpolation.CATMULL_ROM); }
+    public static PathTrack bezier(Point... points) { return new PathTrack(List.of(points), Interpolation.BEZIER); }
+    public static PathTrack linear(Point... points) { return new PathTrack(List.of(points), Interpolation.LINEAR); }
 
     public List<Point> points() { return points; }
     public Interpolation interpolation() { return interpolation; }
@@ -83,10 +86,9 @@ public final class PathTrack {
         }
 
         int segment = segmentFor(tick);
-        Point a = points.get(segment);
-        Point b = points.get(segment + 1);
+        Point a = points.get(segment), b = points.get(segment + 1);
         double raw = (tick - a.tick()) / (b.tick() - a.tick());
-        double t = a.easingToNext().apply(raw);
+        double t = a.interpolate(raw);
 
         Vec3d position;
         Vec3d tangent;
@@ -96,12 +98,8 @@ public final class PathTrack {
                 tangent = b.position().subtract(a.position());
             }
             case BEZIER -> {
-                Vec3d c1 = a.outHandle() == null
-                        ? lerp(a.position(), b.position(), 1.0 / 3.0)
-                        : a.position().add(a.outHandle());
-                Vec3d c2 = b.inHandle() == null
-                        ? lerp(a.position(), b.position(), 2.0 / 3.0)
-                        : b.position().add(b.inHandle());
+                Vec3d c1 = a.outHandle() == null ? lerp(a.position(), b.position(), 1.0 / 3.0) : a.position().add(a.outHandle());
+                Vec3d c2 = b.inHandle() == null ? lerp(a.position(), b.position(), 2.0 / 3.0) : b.position().add(b.inHandle());
                 position = bezier(a.position(), c1, c2, b.position(), t);
                 tangent = bezierDerivative(a.position(), c1, c2, b.position(), t);
             }
@@ -118,10 +116,6 @@ public final class PathTrack {
         return new Sample(position, safeTangent(tangent));
     }
 
-    /**
-     * Creates an analytic MotionCurve. When orientToPath is enabled, yaw/pitch follow the tangent.
-     * bankDegrees is applied around local Z and is useful for aircraft/vessels.
-     */
     public MotionCurve asMotionCurve(boolean orientToPath, double bankDegrees) {
         return (tick, seed) -> {
             Sample sample = sample(tick);
@@ -138,41 +132,30 @@ public final class PathTrack {
     }
 
     private int segmentFor(double tick) {
-        int low = 0;
-        int high = points.size() - 1;
+        int low = 0, high = points.size() - 1;
         while (low + 1 < high) {
             int mid = (low + high) >>> 1;
-            if (points.get(mid).tick() <= tick) low = mid;
-            else high = mid;
+            if (points.get(mid).tick() <= tick) low = mid; else high = mid;
         }
         return low;
     }
 
     private static Vec3d lerp(Vec3d a, Vec3d b, double t) {
-        return new Vec3d(
-                a.x + (b.x - a.x) * t,
-                a.y + (b.y - a.y) * t,
-                a.z + (b.z - a.z) * t);
+        return new Vec3d(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
     }
 
     private static Vec3d bezier(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double t) {
         double u = 1.0 - t;
-        return p0.multiply(u * u * u)
-                .add(p1.multiply(3.0 * u * u * t))
-                .add(p2.multiply(3.0 * u * t * t))
-                .add(p3.multiply(t * t * t));
+        return p0.multiply(u * u * u).add(p1.multiply(3.0 * u * u * t)).add(p2.multiply(3.0 * u * t * t)).add(p3.multiply(t * t * t));
     }
 
     private static Vec3d bezierDerivative(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double t) {
         double u = 1.0 - t;
-        return p1.subtract(p0).multiply(3.0 * u * u)
-                .add(p2.subtract(p1).multiply(6.0 * u * t))
-                .add(p3.subtract(p2).multiply(3.0 * t * t));
+        return p1.subtract(p0).multiply(3.0 * u * u).add(p2.subtract(p1).multiply(6.0 * u * t)).add(p3.subtract(p2).multiply(3.0 * t * t));
     }
 
     private static Vec3d catmull(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double t) {
-        double t2 = t * t;
-        double t3 = t2 * t;
+        double t2 = t * t, t3 = t2 * t;
         return new Vec3d(
                 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2*p0.x - 5*p1.x + 4*p2.x - p3.x) * t2 + (-p0.x + 3*p1.x - 3*p2.x + p3.x) * t3),
                 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2*p0.y - 5*p1.y + 4*p2.y - p3.y) * t2 + (-p0.y + 3*p1.y - 3*p2.y + p3.y) * t3),
