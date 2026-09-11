@@ -34,7 +34,13 @@ jobs:
         run: ./gradlew -p cinefx-gui test --stacktrace
       - name: Build standalone CineFX GUI mod
         run: ./gradlew -p cinefx-gui build --stacktrace
-      - uses: actions/upload-artifact@v4
+      - name: Upload CineFX runtime jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinefx-runtime
+          path: build/libs/*.jar
+      - name: Upload CineFX GUI jars
+        uses: actions/upload-artifact@v4
         with:
           name: cinefx-gui
           path: cinefx-gui/build/libs/*.jar
