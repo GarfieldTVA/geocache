@@ -22,6 +22,14 @@ public final class PreviewController {
     private static final Identifier EDITOR_CAMERA_ID = Identifier.of("cinefx_gui", "editor_camera_runtime");
     private static final double CAMERA_DURATION = 1_728_000.0;
 
+    /**
+     * Heavy scene decoding/hot replacement is deliberately capped while a mouse drag is producing
+     * dozens of model changes. 10 Hz is fluid enough for authoring and avoids the repeated frame
+     * stalls that were visible with large scenes. A quiet edit is flushed much sooner.
+     */
+    private static final long LIVE_REFRESH_NS = 100_000_000L;
+    private static final long QUIET_REFRESH_NS = 45_000_000L;
+
     private EditorModel.Project project;
     private SceneHandle previewHandle;
     private SceneHandle editorCameraHandle;
@@ -31,6 +39,13 @@ public final class PreviewController {
     private boolean previewDirty = true;
     private boolean sceneCameraPreview;
     private CineFxBridge.BuildResult lastBuild;
+
+    private long dirtyMarkedNanos = System.nanoTime();
+    private long lastRefreshNanos;
+    private long previewBuildCount;
+    private long totalBuildNanos;
+    private long lastBuildNanos;
+    private double lastSentSeekTick = Double.NaN;
 
     private volatile Vec3d editorCameraPosition = Vec3d.ZERO;
     private volatile float editorCameraYaw;
@@ -44,7 +59,9 @@ public final class PreviewController {
         currentTick = 0.0;
         playing = false;
         previewDirty = true;
+        dirtyMarkedNanos = System.nanoTime();
         lastBuild = null;
+        lastSentSeekTick = Double.NaN;
     }
 
     public double currentTick() { return currentTick; }
@@ -54,15 +71,23 @@ public final class PreviewController {
     public Vec3d editorCameraPosition() { return editorCameraPosition; }
     public float editorCameraYaw() { return editorCameraYaw; }
     public float editorCameraPitch() { return editorCameraPitch; }
+    public long previewBuildCount() { return previewBuildCount; }
+    public double lastBuildMillis() { return lastBuildNanos / 1_000_000.0; }
+    public double averageBuildMillis() {
+        return previewBuildCount == 0 ? 0.0 : totalBuildNanos / 1_000_000.0 / previewBuildCount;
+    }
 
-    public void markDirty() { previewDirty = true; }
+    public void markDirty() {
+        previewDirty = true;
+        dirtyMarkedNanos = System.nanoTime();
+    }
 
     public void setTick(MinecraftClient client, double tick) {
         if (project == null) return;
         currentTick = clamp(tick, 0.0, Math.max(1.0, project.durationTicks));
         ensurePreview(client, playing);
         if (previewHandle == null) return;
-        ClientCineFx.seek(previewHandle, currentTick);
+        seekIfChanged(currentTick, true);
         if (playing) {
             ClientCineFx.resume(previewHandle);
             resetPlayClock(client);
@@ -77,15 +102,14 @@ public final class PreviewController {
             ensurePreview(client, false);
             if (previewHandle != null) {
                 ClientCineFx.pause(previewHandle);
-                ClientCineFx.seek(previewHandle, currentTick);
+                seekIfChanged(currentTick, true);
             }
         } else {
-            // Rebuild only the definition (not the scene instance) so audio-capable playback can be
-            // restored after paused editing without the visible stop/play hitch.
+            // Playing must see the latest authored state immediately, including audio channels.
             if (previewHandle == null) ensurePreview(client, true);
-            else refreshDefinition(client, true);
+            else if (previewDirty || lastBuild == null) refreshDefinition(client, true);
             if (previewHandle != null) {
-                ClientCineFx.seek(previewHandle, currentTick);
+                seekIfChanged(currentTick, true);
                 ClientCineFx.resume(previewHandle);
             }
             playing = true;
@@ -98,7 +122,7 @@ public final class PreviewController {
         currentTick = 0.0;
         ensurePreview(client, false);
         if (previewHandle != null) {
-            ClientCineFx.seek(previewHandle, 0.0);
+            seekIfChanged(0.0, true);
             ClientCineFx.pause(previewHandle);
         }
     }
@@ -106,25 +130,31 @@ public final class PreviewController {
     public void tick(MinecraftClient client) {
         if (project == null || client == null || client.world == null) return;
         if (!sceneCameraPreview) ensureEditorCamera(client);
+
         if (playing) {
             currentTick = Math.max(0.0, client.world.getTime() - playStartGameTime);
             if (project.looping && project.durationTicks > 0.0) currentTick %= project.durationTicks;
             else if (currentTick >= project.durationTicks) {
                 currentTick = project.durationTicks;
                 playing = false;
-                restartPreview(client, currentTick, false, true);
+                ensurePreview(client, false);
+                if (previewHandle != null) {
+                    seekIfChanged(currentTick, true);
+                    ClientCineFx.pause(previewHandle);
+                }
                 return;
             }
-            if (previewDirty) refreshDefinition(client, true);
+            refreshIfDue(client, true);
         } else {
             ensurePreview(client, false);
-            if (previewHandle != null) ClientCineFx.seek(previewHandle, currentTick);
+            refreshIfDue(client, false);
+            seekIfChanged(currentTick, false);
         }
     }
 
     public CineFxBridge.BuildResult validateOnly() {
         if (project == null) return null;
-        lastBuild = CineFxBridge.build(project, PREVIEW_ID, false);
+        lastBuild = buildTimed(false);
         return lastBuild;
     }
 
@@ -169,44 +199,72 @@ public final class PreviewController {
         sceneCameraPreview = false;
     }
 
+    private void refreshIfDue(MinecraftClient client, boolean includeAudio) {
+        if (!previewDirty || previewHandle == null) return;
+        long now = System.nanoTime();
+        boolean liveBudgetElapsed = now - lastRefreshNanos >= LIVE_REFRESH_NS;
+        boolean editWentQuiet = dirtyMarkedNanos != 0L && now - dirtyMarkedNanos >= QUIET_REFRESH_NS;
+        if (liveBudgetElapsed || editWentQuiet) refreshDefinition(client, includeAudio);
+    }
+
     /**
-     * Keeps the current scene instance alive while authoring. The CineFX runtime already hot-swaps
-     * replaced definitions in place, so moving a gizmo no longer stop/plays the whole scene every tick.
+     * Keeps the current scene instance alive while authoring. The CineFX runtime hot-swaps the
+     * replacement definition in place, so this does not reset camera/audio timing or scene handles.
      */
     private void refreshDefinition(MinecraftClient client, boolean includeAudio) {
         if (project == null || client == null || client.world == null) return;
-        lastBuild = CineFxBridge.build(project, PREVIEW_ID, includeAudio);
+        lastBuild = buildTimed(includeAudio);
         CineFxApi.replace(lastBuild.scene());
         previewDirty = false;
+        dirtyMarkedNanos = 0L;
+        lastRefreshNanos = System.nanoTime();
         if (previewHandle == null) {
             long start = client.world.getTime() - Math.max(0L, (long)Math.floor(currentTick));
             SceneOptions options = new SceneOptions(project.anchor(), start, project.seed,
                     project.variables == null ? Map.of() : project.variables);
             previewHandle = ClientCineFx.play(PREVIEW_ID, options);
-            if (!playing) ClientCineFx.seek(previewHandle, currentTick);
+            lastSentSeekTick = Double.NaN;
+            if (!playing) seekIfChanged(currentTick, true);
         }
     }
 
+    /** Create the preview immediately only when there is no running instance. Dirty replacements are throttled. */
     private void ensurePreview(MinecraftClient client, boolean includeAudio) {
-        if (previewHandle == null) {
-            restartPreview(client, currentTick, includeAudio, !playing);
-        } else if (previewDirty) {
-            refreshDefinition(client, includeAudio);
-        }
+        if (previewHandle == null) restartPreview(client, currentTick, includeAudio, !playing);
     }
 
     private void restartPreview(MinecraftClient client, double localTick, boolean includeAudio, boolean freeze) {
         if (project == null || client == null || client.world == null) return;
         stopPreview();
-        lastBuild = CineFxBridge.build(project, PREVIEW_ID, includeAudio);
+        lastBuild = buildTimed(includeAudio);
         CineFxApi.replace(lastBuild.scene());
         long start = client.world.getTime() - Math.max(0L, (long)Math.floor(localTick));
         playStartGameTime = start;
         SceneOptions options = new SceneOptions(project.anchor(), start, project.seed,
                 project.variables == null ? Map.of() : project.variables);
         previewHandle = ClientCineFx.play(PREVIEW_ID, options);
-        if (freeze) ClientCineFx.seek(previewHandle, localTick);
+        lastSentSeekTick = Double.NaN;
+        if (freeze) seekIfChanged(localTick, true);
         previewDirty = false;
+        dirtyMarkedNanos = 0L;
+        lastRefreshNanos = System.nanoTime();
+    }
+
+    private CineFxBridge.BuildResult buildTimed(boolean includeAudio) {
+        long started = System.nanoTime();
+        CineFxBridge.BuildResult result = CineFxBridge.build(project, PREVIEW_ID, includeAudio);
+        long elapsed = Math.max(0L, System.nanoTime() - started);
+        lastBuildNanos = elapsed;
+        totalBuildNanos += elapsed;
+        previewBuildCount++;
+        return result;
+    }
+
+    private void seekIfChanged(double tick, boolean force) {
+        if (previewHandle == null) return;
+        if (!force && Double.isFinite(lastSentSeekTick) && Math.abs(lastSentSeekTick - tick) < 1.0e-6) return;
+        ClientCineFx.seek(previewHandle, tick);
+        lastSentSeekTick = tick;
     }
 
     private void resetPlayClock(MinecraftClient client) {
@@ -219,6 +277,7 @@ public final class PreviewController {
             ClientCineFx.stop(previewHandle);
             previewHandle = null;
         }
+        lastSentSeekTick = Double.NaN;
     }
 
     private void ensureEditorCamera(MinecraftClient client) {
