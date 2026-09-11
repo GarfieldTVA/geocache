@@ -17,6 +17,7 @@
     "CineFxStudioEventEditorMixin",
     "CineFxStudioUxMixin",
     "CineFxStudioEscapeMixin",
+    "CineFxStudioCameraInputFixMixin",
     "EventProgramEditorSafetyMixin",
     "AnimationJsonBezierMixin",
     "SceneManipulatorSamplingMixin",
