@@ -2,7 +2,7 @@ name: CineFX GUI
 
 on:
   push:
-    branches: ["feature/cinefx-gui", "feature/cinefx-gui-audit", "feature/cinefx-gui-complete", "feature/cinefx-gui-ux-fixes"]
+    branches: ["feature/cinefx-gui", "feature/cinefx-gui-audit", "feature/cinefx-gui-complete", "feature/cinefx-gui-ux-fixes", "feature/cinefx-universal-visual-editor"]
   pull_request:
     paths:
       - "cinefx-gui/**"
