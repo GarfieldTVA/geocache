@@ -72,11 +72,9 @@ public final class PreviewController {
     public void togglePlay(MinecraftClient client) {
         if (playing) {
             playing = false;
-            // Recreate once without audio/event-only side effects, then freeze exactly at the playhead.
             restartPreview(client, currentTick, false, true);
         } else {
             playing = true;
-            // Playback transitions are allowed one intentional restart so audio starts from the selected tick.
             restartPreview(client, currentTick, true, false);
             resetPlayClock(client);
         }
@@ -138,9 +136,20 @@ public final class PreviewController {
         if (!sceneCameraPreview) ensureEditorCamera(client);
     }
 
+    /**
+     * Called when the Studio UI is hidden. Keep the authored CineFX preview alive in the world, but
+     * release editor-only camera control so the player can move around normally like creative mode.
+     */
     public void close() {
+        sceneCameraPreview = false;
+        stopEditorCamera();
+    }
+
+    /** Fully remove the persistent preview, used when leaving the world or resetting the Studio. */
+    public void shutdown() {
         stopPreview();
         stopEditorCamera();
+        sceneCameraPreview = false;
     }
 
     /**
