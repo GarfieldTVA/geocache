@@ -60,24 +60,32 @@ public final class PreviewController {
     public void setTick(MinecraftClient client, double tick) {
         if (project == null) return;
         currentTick = clamp(tick, 0.0, Math.max(1.0, project.durationTicks));
-        if (playing) startPreview(client, currentTick, true);
-        else rebuildPausedPreview(client);
+        ensurePreview(client, playing);
+        if (previewHandle == null) return;
+        ClientCineFx.seek(previewHandle, currentTick);
+        if (playing) {
+            ClientCineFx.resume(previewHandle);
+            resetPlayClock(client);
+        }
     }
 
     public void togglePlay(MinecraftClient client) {
         if (playing) {
             playing = false;
-            rebuildPausedPreview(client);
+            // Recreate once without audio/event-only side effects, then freeze exactly at the playhead.
+            restartPreview(client, currentTick, false, true);
         } else {
             playing = true;
-            startPreview(client, currentTick, true);
+            // Playback transitions are allowed one intentional restart so audio starts from the selected tick.
+            restartPreview(client, currentTick, true, false);
+            resetPlayClock(client);
         }
     }
 
     public void stopAndRewind(MinecraftClient client) {
         playing = false;
         currentTick = 0.0;
-        rebuildPausedPreview(client);
+        restartPreview(client, currentTick, false, true);
     }
 
     public void tick(MinecraftClient client) {
@@ -89,11 +97,14 @@ public final class PreviewController {
             else if (currentTick >= project.durationTicks) {
                 currentTick = project.durationTicks;
                 playing = false;
-                rebuildPausedPreview(client);
+                restartPreview(client, currentTick, false, true);
                 return;
             }
-            if (previewDirty) startPreview(client, currentTick, true);
-        } else if (previewDirty || previewHandle == null) rebuildPausedPreview(client);
+            if (previewDirty) refreshDefinition(client, true);
+        } else {
+            ensurePreview(client, false);
+            if (previewHandle != null) ClientCineFx.seek(previewHandle, currentTick);
+        }
     }
 
     public CineFxBridge.BuildResult validateOnly() {
@@ -132,9 +143,33 @@ public final class PreviewController {
         stopEditorCamera();
     }
 
-    private void rebuildPausedPreview(MinecraftClient client) { startPreview(client, currentTick, false); }
+    /**
+     * Keeps the current scene instance alive while authoring. The CineFX runtime already hot-swaps
+     * replaced definitions in place, so moving a gizmo no longer stop/plays the whole scene every tick.
+     */
+    private void refreshDefinition(MinecraftClient client, boolean includeAudio) {
+        if (project == null || client == null || client.world == null) return;
+        lastBuild = CineFxBridge.build(project, PREVIEW_ID, includeAudio);
+        CineFxApi.replace(lastBuild.scene());
+        previewDirty = false;
+        if (previewHandle == null) {
+            long start = client.world.getTime() - Math.max(0L, (long)Math.floor(currentTick));
+            SceneOptions options = new SceneOptions(project.anchor(), start, project.seed,
+                    project.variables == null ? Map.of() : project.variables);
+            previewHandle = ClientCineFx.play(PREVIEW_ID, options);
+            if (!playing) ClientCineFx.seek(previewHandle, currentTick);
+        }
+    }
 
-    private void startPreview(MinecraftClient client, double localTick, boolean includeAudio) {
+    private void ensurePreview(MinecraftClient client, boolean includeAudio) {
+        if (previewHandle == null) {
+            restartPreview(client, currentTick, includeAudio, !playing);
+        } else if (previewDirty) {
+            refreshDefinition(client, includeAudio);
+        }
+    }
+
+    private void restartPreview(MinecraftClient client, double localTick, boolean includeAudio, boolean freeze) {
         if (project == null || client == null || client.world == null) return;
         stopPreview();
         lastBuild = CineFxBridge.build(project, PREVIEW_ID, includeAudio);
@@ -144,7 +179,13 @@ public final class PreviewController {
         SceneOptions options = new SceneOptions(project.anchor(), start, project.seed,
                 project.variables == null ? Map.of() : project.variables);
         previewHandle = ClientCineFx.play(PREVIEW_ID, options);
+        if (freeze) ClientCineFx.seek(previewHandle, localTick);
         previewDirty = false;
+    }
+
+    private void resetPlayClock(MinecraftClient client) {
+        if (client != null && client.world != null)
+            playStartGameTime = client.world.getTime() - Math.max(0L, (long)Math.floor(currentTick));
     }
 
     private void stopPreview() {
