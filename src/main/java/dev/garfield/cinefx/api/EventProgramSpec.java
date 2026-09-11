@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Serializable/data-driven counterpart to {@link EventProgram}. Unlike EventProgram's lambda-based
@@ -148,9 +150,7 @@ public record EventProgramSpec(
                 if (sceneId == null) throw new IllegalArgumentException("sceneId is required");
                 variables = variables == null ? Map.of() : Map.copyOf(variables);
             }
-            @Override public EventProgram.Action compile() {
-                return EventProgram.Action.play(sceneId, startOffsetTicks, seedSalt, variables);
-            }
+            @Override public EventProgram.Action compile() { return EventProgram.Action.play(sceneId, startOffsetTicks, seedSalt, variables); }
         }
 
         record Stop(Identifier sceneId) implements ActionSpec {
@@ -183,6 +183,30 @@ public record EventProgramSpec(
             }
             @Override public EventProgram.Action compile() { return EventProgram.Action.marker(name, parameters); }
         }
+    }
+
+    /** Hot-reloadable declarative program registry for tooling and data-driven integrations. */
+    public static final class Registry {
+        private static final ConcurrentHashMap<Identifier, EventProgramSpec> SPECS = new ConcurrentHashMap<>();
+        private Registry() { }
+
+        public static void register(EventProgramSpec spec) {
+            if (spec == null) throw new IllegalArgumentException("spec is required");
+            EventProgramSpec previous = SPECS.putIfAbsent(spec.id(), spec);
+            if (previous != null) throw new IllegalStateException("CineFX event program already registered: " + spec.id());
+        }
+
+        public static void replace(EventProgramSpec spec) {
+            if (spec == null) throw new IllegalArgumentException("spec is required");
+            // Compile before publishing so a bad transition never replaces the last good version.
+            spec.compile();
+            SPECS.put(spec.id(), spec);
+        }
+
+        public static boolean remove(Identifier id) { return id != null && SPECS.remove(id) != null; }
+        public static Optional<EventProgramSpec> find(Identifier id) { return Optional.ofNullable(SPECS.get(id)); }
+        public static Optional<EventProgram> compiled(Identifier id) { return find(id).map(EventProgramSpec::compile); }
+        public static Map<Identifier, EventProgramSpec> snapshot() { return Map.copyOf(SPECS); }
     }
 
     private static List<EventProgram.Action> compileActions(List<ActionSpec> specs) {
