@@ -25,6 +25,9 @@ public final class ScalarTrack {
         return of(Keyframe.at(0.0, value));
     }
 
+    /** Immutable ordered keyframe view for tooling, serializers and editors. */
+    public List<Keyframe<Double>> keyframes() { return keys; }
+
     public double sample(double tick) {
         if (keys.size() == 1 || tick <= keys.getFirst().tick()) return keys.getFirst().value();
         if (tick >= keys.getLast().tick()) return keys.getLast().value();
@@ -39,7 +42,7 @@ public final class ScalarTrack {
         Keyframe<Double> b = keys.get(high);
         double span = b.tick() - a.tick();
         double raw = span <= 0.0 ? 1.0 : (tick - a.tick()) / span;
-        double t = a.easingToNext().apply(raw);
+        double t = a.interpolate(raw);
         return a.value() + (b.value() - a.value()) * t;
     }
 }

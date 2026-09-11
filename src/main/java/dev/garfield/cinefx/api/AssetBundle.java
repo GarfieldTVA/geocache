@@ -34,6 +34,13 @@ public record AssetBundle(
             if (previous != null) throw new IllegalStateException("CineFX asset bundle already registered: " + bundle.id());
         }
 
+        /** Tooling/hot-reload path. Runtime users that need duplicate protection should keep using register(). */
+        public static void replace(AssetBundle bundle) {
+            if (bundle == null) throw new IllegalArgumentException("bundle is required");
+            BUNDLES.put(bundle.id(), bundle);
+        }
+
+        public static boolean remove(Identifier id) { return id != null && BUNDLES.remove(id) != null; }
         public static Optional<AssetBundle> find(Identifier id) { return Optional.ofNullable(BUNDLES.get(id)); }
         public static Map<Identifier, AssetBundle> snapshot() { return Map.copyOf(BUNDLES); }
     }

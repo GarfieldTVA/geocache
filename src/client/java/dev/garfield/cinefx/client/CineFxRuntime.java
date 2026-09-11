@@ -26,7 +26,9 @@ public final class CineFxRuntime {
     private final CinematicBackendRegistry cinematicBackends = new CinematicBackendRegistry();
     private final ArrayList<EventMarkerListener> markerListeners = new ArrayList<>();
 
-    private CineFxRuntime() { }
+    private CineFxRuntime() {
+        CineFxApi.onReplace(this::onSceneReplaced);
+    }
 
     public SceneHandle play(Identifier sceneId, SceneOptions options) {
         requireClientThread();
@@ -38,7 +40,7 @@ public final class CineFxRuntime {
         long id = ids.getAndIncrement();
         ActiveScene scene = new ActiveScene(id, definition, options, start, client);
         active.add(scene);
-        active.sort(Comparator.comparingInt((ActiveScene value) -> value.definition().priority()).reversed());
+        sortActive();
         return new SceneHandle(id, sceneId);
     }
 
@@ -50,6 +52,24 @@ public final class CineFxRuntime {
     public void stop(Identifier sceneId) {
         requireClientThread();
         active.removeIf(scene -> scene.definition().id().equals(sceneId));
+    }
+
+    public void pause(long instanceId) {
+        requireClientThread();
+        ActiveScene scene = find(instanceId);
+        if (scene != null) scene.pause(absoluteGameTick(MinecraftClient.getInstance()));
+    }
+
+    public void seek(long instanceId, double localTick) {
+        requireClientThread();
+        ActiveScene scene = find(instanceId);
+        if (scene != null) scene.seek(localTick);
+    }
+
+    public void resume(long instanceId) {
+        requireClientThread();
+        ActiveScene scene = find(instanceId);
+        if (scene != null) scene.resume(absoluteGameTick(MinecraftClient.getInstance()));
     }
 
     public void clear() { active.clear(); }
@@ -83,6 +103,29 @@ public final class CineFxRuntime {
     public static double absoluteGameTick(MinecraftClient client) {
         if (client.world == null) return 0.0;
         return client.world.getTime() + client.getRenderTickCounter().getTickProgress(false);
+    }
+
+    private ActiveScene find(long instanceId) {
+        for (ActiveScene scene : active) if (scene.instanceId() == instanceId) return scene;
+        return null;
+    }
+
+    private void onSceneReplaced(SceneDefinition replacement) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        Runnable refresh = () -> {
+            boolean changed = false;
+            for (ActiveScene scene : active) {
+                if (!scene.definition().id().equals(replacement.id())) continue;
+                scene.refreshDefinition(replacement, client);
+                changed = true;
+            }
+            if (changed) sortActive();
+        };
+        if (client.isOnThread()) refresh.run(); else client.execute(refresh);
+    }
+
+    private void sortActive() {
+        active.sort(Comparator.comparingInt((ActiveScene value) -> value.definition().priority()).reversed());
     }
 
     private static void requireClientThread() {

@@ -1,0 +1,72 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+base { archivesName = project.archives_base_name }
+
+// Loom injects project repositories, so keep mavenLocal here as well as in settings.gradle.
+// CineFX GUI remains a separate artifact and only consumes CineFX through Maven/public API types.
+repositories {
+    mavenLocal()
+    maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+    mavenCentral()
+}
+
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        cinefx_gui {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    withSourcesJar()
+}
+
+sourceSets {
+    test {
+        // Authoring-model tests intentionally exercise client-source editor code without launching a
+        // graphical Minecraft client. Loom supplies the mapped Minecraft/Fabric runtime classes.
+        compileClasspath += sourceSets.client.output
+        runtimeClasspath += sourceSets.client.output
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings "net.fabricmc:yarn:${yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+
+    // CineFX is a separate mod. Nothing from CineFX is shaded or copied into CineFX GUI.
+    // From the CineFX-API checkout, run: ./gradlew publishToMavenLocal
+    modCompileOnly "dev.garfield:cinefx:${cinefx_version}"
+    modLocalRuntime "dev.garfield:cinefx:${cinefx_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'cinefx_version', project.cinefx_version
+    filesMatching('fabric.mod.json') {
+        expand version: project.version, cinefx_version: project.cinefx_version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

@@ -26,13 +26,13 @@ public record AdvancedTransformTrack(
         if (track == null) return identity();
         return new AdvancedTransformTrack(
                 Vec3Track.of(track.keyframes().stream()
-                        .map(key -> new Keyframe<>(key.tick(), key.value().translation(), key.easingToNext()))
+                        .map(key -> new Keyframe<>(key.tick(), key.value().translation(), key.easingToNext(), key.bezierToNext()))
                         .toArray(Keyframe[]::new)),
                 Vec3Track.angles(track.keyframes().stream()
-                        .map(key -> new Keyframe<>(key.tick(), key.value().rotationDegrees(), key.easingToNext()))
+                        .map(key -> new Keyframe<>(key.tick(), key.value().rotationDegrees(), key.easingToNext(), key.bezierToNext()))
                         .toArray(Keyframe[]::new)),
                 Vec3Track.of(track.keyframes().stream()
-                        .map(key -> new Keyframe<>(key.tick(), key.value().scale(), key.easingToNext()))
+                        .map(key -> new Keyframe<>(key.tick(), key.value().scale(), key.easingToNext(), key.bezierToNext()))
                         .toArray(Keyframe[]::new)),
                 Vec3Track.constant(Vec3d.ZERO));
     }

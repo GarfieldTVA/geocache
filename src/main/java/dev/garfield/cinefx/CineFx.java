@@ -1,5 +1,6 @@
 package dev.garfield.cinefx;
 
+import dev.garfield.cinefx.api.EventAuthoringServer;
 import dev.garfield.cinefx.api.EventDirector;
 import dev.garfield.cinefx.api.EventDirectorCommands;
 import dev.garfield.cinefx.network.CineFxNetworking;
@@ -17,6 +18,7 @@ public final class CineFx implements ModInitializer {
     public void onInitialize() {
         CineFxNetworking.initialize();
         EventDirector.INSTANCE.initialize();
+        EventAuthoringServer.initialize();
         EventDirectorCommands.initialize();
         ShowcaseScenes.registerAll();
         MegaEventPresets.register();

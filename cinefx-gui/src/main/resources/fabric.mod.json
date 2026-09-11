@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "cinefx_gui",
+  "version": "${version}",
+  "name": "CineFX GUI",
+  "description": "In-world timeline and preset editor for the separate CineFX API mod.",
+  "authors": ["GarfieldTVA"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.garfield.cinefxgui.CineFxGuiClient"]
+  },
+  "mixins": [
+    "cinefx_gui.client.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.2",
+    "minecraft": "=1.21.11",
+    "java": ">=21",
+    "fabric-api": "*",
+    "cinefx": ">=${cinefx_version}"
+  }
+}

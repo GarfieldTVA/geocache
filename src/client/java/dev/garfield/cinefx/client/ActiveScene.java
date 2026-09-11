@@ -15,31 +15,68 @@ import java.util.Map;
 
 public final class ActiveScene {
     private final long instanceId;
-    private final SceneDefinition definition;
+    private SceneDefinition definition;
     private final SceneOptions options;
     private final long startGameTime;
-    private final List<SceneElement> allElementsByPriority;
-    private final TemporalIndex temporalIndex;
-    private final Map<String, BlockState> sampledBlocks;
+    private double timelineOffset;
+    private Double fixedLocalTick;
+    private List<SceneElement> allElementsByPriority;
+    private TemporalIndex temporalIndex;
+    private Map<String, BlockState> sampledBlocks;
 
     ActiveScene(long instanceId, SceneDefinition definition, SceneOptions options, long startGameTime,
                 MinecraftClient client) {
         this.instanceId = instanceId;
-        this.definition = definition;
         this.options = options;
         this.startGameTime = startGameTime;
-        ArrayList<SceneElement> sorted = new ArrayList<>(definition.elements());
-        sorted.sort(Comparator.comparingInt(SceneElement::priority).reversed());
-        this.allElementsByPriority = List.copyOf(sorted);
-        this.temporalIndex = new TemporalIndex(allElementsByPriority, definition.durationTicks());
-        this.sampledBlocks = captureSampledBlocks(client);
+        installDefinition(definition, client);
     }
 
-    private Map<String, BlockState> captureSampledBlocks(MinecraftClient client) {
+    /**
+     * Replaces only the immutable definition backing this running instance. Timeline position,
+     * instance id and SceneOptions stay intact, so editor hot-reload does not restart audio/camera
+     * cues or jump the playhead back to zero.
+     */
+    void refreshDefinition(SceneDefinition replacement, MinecraftClient client) {
+        if (replacement == null || !definition.id().equals(replacement.id())) return;
+        installDefinition(replacement, client);
+        if (fixedLocalTick != null && definition.looping()) fixedLocalTick = loopTick(fixedLocalTick);
+    }
+
+    /** Freeze this instance at its current runtime tick. */
+    void pause(double absoluteGameTick) {
+        if (fixedLocalTick == null) fixedLocalTick = localTickUnfrozen(absoluteGameTick);
+    }
+
+    /** Freeze this instance at an explicit scene-local tick. Useful for editor scrubbing. */
+    void seek(double localTick) {
+        fixedLocalTick = seekTick(localTick);
+    }
+
+    /** Resume from the exact frozen/seeked position without restarting the scene instance. */
+    void resume(double absoluteGameTick) {
+        if (fixedLocalTick == null) return;
+        timelineOffset = fixedLocalTick - (absoluteGameTick - startGameTime);
+        fixedLocalTick = null;
+    }
+
+    boolean paused() { return fixedLocalTick != null; }
+
+    private void installDefinition(SceneDefinition next, MinecraftClient client) {
+        if (next == null) throw new IllegalArgumentException("definition is required");
+        this.definition = next;
+        ArrayList<SceneElement> sorted = new ArrayList<>(next.elements());
+        sorted.sort(Comparator.comparingInt(SceneElement::priority).reversed());
+        this.allElementsByPriority = List.copyOf(sorted);
+        this.temporalIndex = new TemporalIndex(allElementsByPriority, next.durationTicks());
+        this.sampledBlocks = captureSampledBlocks(client, next);
+    }
+
+    private Map<String, BlockState> captureSampledBlocks(MinecraftClient client, SceneDefinition source) {
         if (client.world == null) return Map.of();
         HashMap<String, BlockState> result = new HashMap<>();
         BlockPos anchorBlock = BlockPos.ofFloored(options.anchor());
-        for (SceneElement element : definition.elements()) {
+        for (SceneElement element : source.elements()) {
             if (element instanceof SceneElement.Block block && block.samplesWorld()) {
                 result.put(block.key(), client.world.getBlockState(anchorBlock.add(block.sampleOffset())));
             }
@@ -76,15 +113,29 @@ public final class ActiveScene {
     public BlockState sampledBlock(String elementKey) { return sampledBlocks.get(elementKey); }
 
     public double localTick(double absoluteGameTick) {
-        double local = absoluteGameTick - startGameTime;
-        if (!definition.looping()) return local;
+        if (fixedLocalTick != null) return fixedLocalTick;
+        return localTickUnfrozen(absoluteGameTick);
+    }
+
+    private double localTickUnfrozen(double absoluteGameTick) {
+        double local = absoluteGameTick - startGameTime + timelineOffset;
+        return definition.looping() ? loopTick(local) : local;
+    }
+
+    private double seekTick(double local) {
+        if (definition.looping()) return loopTick(local);
+        return Math.max(0.0, Math.min(definition.durationTicks(), local));
+    }
+
+    private double loopTick(double local) {
         double duration = definition.durationTicks();
         double modulo = local % duration;
         return modulo < 0.0 ? modulo + duration : modulo;
     }
 
     public boolean completed(double absoluteGameTick) {
-        return !definition.looping() && absoluteGameTick - startGameTime > definition.durationTicks();
+        if (fixedLocalTick != null || definition.looping()) return false;
+        return absoluteGameTick - startGameTime + timelineOffset > definition.durationTicks();
     }
 
     /** Compact fixed-bucket interval index. Bucket count is capped for very long scenes. */

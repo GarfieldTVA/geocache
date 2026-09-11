@@ -1,0 +1,46 @@
+name: CineFX GUI
+
+on:
+  push:
+    branches: ["feature/cinefx-gui", "feature/cinefx-gui-audit", "feature/cinefx-gui-complete", "feature/cinefx-gui-ux-fixes", "feature/cinefx-universal-visual-editor", "feature/cinefx-viewport-first"]
+  pull_request:
+    paths:
+      - "cinefx-gui/**"
+      - ".github/workflows/cinefx-gui.yml"
+      - "src/**"
+      - "build.gradle"
+      - "gradle.properties"
+
+concurrency:
+  group: cinefx-gui-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Run CineFX API regression tests
+        run: |
+          chmod +x ./gradlew
+          ./gradlew test --stacktrace
+      - name: Publish CineFX API locally
+        run: ./gradlew publishToMavenLocal --stacktrace
+      - name: Run CineFX GUI authoring regression tests
+        run: ./gradlew -p cinefx-gui test --stacktrace
+      - name: Build standalone CineFX GUI mod
+        run: ./gradlew -p cinefx-gui build --stacktrace
+      - name: Upload CineFX runtime jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinefx-runtime
+          path: build/libs/*.jar
+      - name: Upload CineFX GUI jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinefx-gui
+          path: cinefx-gui/build/libs/*.jar

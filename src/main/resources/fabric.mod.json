@@ -12,7 +12,10 @@
   "environment": "*",
   "entrypoints": {
     "main": ["dev.garfield.cinefx.CineFx"],
-    "client": ["dev.garfield.cinefx.client.CineFxClient"]
+    "client": [
+      "dev.garfield.cinefx.client.CineFxClient",
+      "dev.garfield.cinefx.client.CineFxNativeLightingClient"
+    ]
   },
   "mixins": [
     "cinefx.client.mixins.json"

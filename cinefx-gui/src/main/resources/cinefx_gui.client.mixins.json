@@ -1,0 +1,39 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.garfield.cinefxgui.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "CineFxStudioAccessMixin",
+    "CineFxStudioTimelineMixin",
+    "CineFxStudioDiagnosticsMixin",
+    "CineFxStudioBackupMixin",
+    "CineFxStudioHierarchyContextMixin",
+    "CineFxStudioOutlinerHierarchyMixin",
+    "CineFxStudioTransformSpaceMixin",
+    "CineFxStudioCurveEditorMixin",
+    "CineFxStudioDopeSheetMixin",
+    "CineFxStudioAssetPickerMixin",
+    "CineFxStudioEventEditorMixin",
+    "CineFxStudioEscapeMixin",
+    "CineFxStudioWorldGuidesMixin",
+    "CineFxStudioViewportFirstMixin",
+    "CineFxStudioIconAtlasMixin",
+    "EventProgramEditorSafetyMixin",
+    "AnimationJsonBezierMixin",
+    "SceneManipulatorSamplingMixin",
+    "SceneManipulatorHierarchyMixin",
+    "SceneManipulatorBeginTransformSpaceMixin",
+    "SceneManipulatorSessionTransformSpaceMixin",
+    "CineFxBridgeValidationMixin",
+    "CineFxBridgeTrackEncodingMixin",
+    "CineFxBridgeBezierMixin",
+    "CineFxBridgeBakedMotionBezierMixin",
+    "ViewportGizmoProjectionMixin",
+    "ViewportGizmoTransformSpaceMixin",
+    "CineFxBridgeDefaultsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
