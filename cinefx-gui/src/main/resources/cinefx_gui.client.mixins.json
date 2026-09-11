@@ -4,6 +4,7 @@
   "package": "dev.garfield.cinefxgui.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "CineFxStudioAccessMixin",
     "CineFxStudioTimelineMixin",
     "CineFxStudioDiagnosticsMixin",
     "CineFxStudioBackupMixin",
@@ -11,6 +12,8 @@
     "CineFxStudioOutlinerHierarchyMixin",
     "CineFxStudioTransformSpaceMixin",
     "CineFxStudioCurveEditorMixin",
+    "CineFxStudioDopeSheetMixin",
+    "CineFxStudioAssetPickerMixin",
     "CineFxStudioEventEditorMixin",
     "EventProgramEditorSafetyMixin",
     "AnimationJsonBezierMixin",
